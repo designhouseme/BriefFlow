@@ -1,0 +1,2 @@
+# Skopiuj do .dev.vars i wpisz klucz. Bez klucza aplikacja działa, tylko okno poleceń AI jest wyłączone.
+GEMINI_API_KEY=
