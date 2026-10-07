@@ -1,4 +1,4 @@
-import { IconArrowUp, IconChevronDown, IconCircleCheck, IconFileText, IconPencil, IconWand } from "@tabler/icons-react";
+import { IconArrowUp, IconCircleCheck, IconFileText, IconPencil, IconWand, IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BriefSummary } from "../shared/account";
 import { questions } from "../shared/flow";
@@ -165,9 +165,11 @@ export function Home({ search }: { search: string }) {
         </div>
 
         <form className="dock" onSubmit={create}>
-          <div className="composer-box">
-            <label className="composer-line">
-              <IconPencil size={18} className="composer-lead" aria-hidden />
+          <div className="bar">
+            <span className="bar-lead tone-1" aria-hidden>
+              <IconPencil size={19} stroke={1.9} />
+            </span>
+            <label className="bar-field">
               <span className="visually-hidden">Klient</span>
               <input
                 ref={input}
@@ -177,22 +179,23 @@ export function Home({ search }: { search: string }) {
                 maxLength={120}
               />
             </label>
-            <div className="composer-bar">
-              <label className="select-pill">
-                <span className="visually-hidden">Szablon</span>
-                <select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-                  {TEMPLATE_LIST.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
-                    </option>
-                  ))}
-                </select>
-                <IconChevronDown size={15} aria-hidden />
-              </label>
-              <button className="btn btn-primary" disabled={busy}>
-                <IconArrowUp size={17} stroke={2.2} aria-hidden /> {busy ? "Tworzę…" : "Utwórz brief"}
+            {templateId !== "www" && (
+              <button
+                type="button"
+                className="bar-chip"
+                onClick={() => setTemplateId("www")}
+                aria-label={`Szablon: ${TEMPLATE_LIST.find((t) => t.id === templateId)?.title}. Wróć do szablonu Strona WWW`}
+              >
+                {TEMPLATE_LIST.find((t) => t.id === templateId)?.title}
+                <IconX size={14} stroke={2.4} aria-hidden />
               </button>
-            </div>
+            )}
+            <button className="btn-send" disabled={busy}>
+              <span className="btn-send-label">{busy ? "Tworzę…" : "Utwórz brief"}</span>
+              <span className="btn-send-icon" aria-hidden>
+                <IconArrowUp size={18} stroke={2.4} />
+              </span>
+            </button>
           </div>
           <p className="dock-note">Klient dostanie swój link. Pytania zmienisz potem ręcznie albo poleceniem dla AI.</p>
         </form>

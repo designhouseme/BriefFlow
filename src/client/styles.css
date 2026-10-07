@@ -1764,28 +1764,6 @@ textarea.input {
   pointer-events: none;
 }
 
-.composer-box {
-  display: grid;
-  gap: 10px;
-  padding: 14px 14px 12px 18px;
-  border-radius: 24px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  box-shadow: var(--shadow-lift);
-  transition:
-    border-color 0.16s,
-    box-shadow 0.16s;
-}
-
-.composer-box:focus-within {
-  border-color: var(--focus);
-  box-shadow: var(--focus-ring), var(--shadow-lift);
-}
-
-.composer-box.is-busy {
-  border-color: var(--blue);
-}
-
 .composer-line {
   display: flex;
   align-items: center;
@@ -1811,44 +1789,162 @@ textarea.input {
   color: var(--ink-3);
 }
 
-.composer-bar {
+/* Pasek na dole panelu: wysoka pigułka, ikona w kółku, pole i przycisk wysyłki */
+
+.bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  min-height: 66px;
+  padding: 8px 8px 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: var(--shadow-lift);
+  transition:
+    border-color 0.16s,
+    box-shadow 0.2s;
 }
 
-.composer-bar .btn {
-  min-height: 38px;
+.bar:focus-within {
+  border-color: var(--focus);
+  box-shadow: var(--focus-ring), var(--shadow-lift);
 }
 
-.select-pill {
-  position: relative;
+.bar.is-busy {
+  border-color: var(--blue);
+}
+
+.bar-lead {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--tone-bg, var(--card-2));
+  color: var(--tone-fg, var(--ink-2));
+}
+
+.bar.is-busy .bar-lead {
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
+
+.bar-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.bar-field input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 4px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 16px;
+}
+
+.bar-field input::placeholder {
+  color: var(--ink-3);
+}
+
+.bar-field input:disabled {
+  cursor: not-allowed;
+}
+
+.bar-chip {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  flex: none;
+  min-height: 34px;
+  padding: 4px 10px 4px 14px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.select-pill select {
-  min-height: 38px;
-  padding: 6px 34px 6px 14px;
+.bar-chip:hover {
+  background: var(--line-2);
+}
+
+.bar-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  flex: none;
   border-radius: 999px;
   border: 1px solid var(--line-2);
   background: var(--card);
-  font-size: 14px;
-  font-weight: 600;
-  appearance: none;
-  cursor: pointer;
+  color: var(--ink-2);
+  transition:
+    border-color 0.16s,
+    color 0.16s,
+    opacity 0.16s;
 }
 
-.select-pill select:hover {
+.bar-icon-btn:hover:not(:disabled) {
   border-color: var(--ink-3);
+  color: var(--ink);
 }
 
-.select-pill svg {
-  position: absolute;
-  right: 12px;
-  color: var(--ink-3);
-  pointer-events: none;
+.bar-icon-btn:disabled {
+  opacity: 0.35;
+}
+
+/* Przycisk wysyłki: czarna pigułka z białym kółkiem i strzałką */
+.btn-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  height: 50px;
+  padding: 0 7px 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 15px;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    background-color 0.16s,
+    opacity 0.16s,
+    transform 0.16s var(--ease);
+}
+
+.btn-send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-send:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-send:disabled {
+  opacity: 0.35;
+}
+
+.btn-send-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--accent-ink);
+  color: var(--accent);
+  transition: transform 0.2s var(--ease);
+}
+
+.btn-send:hover:not(:disabled) .btn-send-icon {
+  transform: translateY(-2px);
 }
 
 .dock-note {
@@ -4420,11 +4516,38 @@ button.quick:hover {
   .dock {
     width: calc(100% - 20px);
   }
-  .composer-box {
-    padding: 12px 10px 10px 14px;
+  .bar {
+    min-height: 58px;
+    gap: 6px;
+    padding: 6px 6px 6px 16px;
   }
-  .select-pill select {
-    max-width: 170px;
+  .bar-lead {
+    display: none;
+  }
+  .bar-icon-btn,
+  .btn-send {
+    height: 44px;
+  }
+  .bar-icon-btn {
+    width: 44px;
+  }
+  /* Na telefonie przycisk to samo kółko ze strzałką; podpis zostaje dla czytników */
+  .btn-send {
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+  }
+  .btn-send-icon {
+    background: transparent;
+    color: var(--accent-ink);
+  }
+  .btn-send-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .qcard {
     padding: 14px 14px 12px;

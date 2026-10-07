@@ -726,14 +726,16 @@ function AiDock({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub
           </button>
         </div>
       )}
-      <div className={`composer-box ${busy ? "is-busy" : ""}`}>
-        <label className="composer-line">
-          <IconWand size={18} className="composer-lead" aria-hidden />
+      <div className={`bar ${busy ? "is-busy" : ""}`}>
+        <span className="bar-lead tone-5" aria-hidden>
+          <IconWand size={19} stroke={1.9} />
+        </span>
+        <label className="bar-field">
           <span className="visually-hidden">Polecenie dla AI</span>
           <input
             placeholder={
               aiEnabled
-                ? "Napisz, co dodać lub zmienić, np. „dodaj pytania o wysyłkę za granicę”"
+                ? "Napisz AI, co dodać lub zmienić w pytaniach"
                 : "AI wyłączone: dodaj GEMINI_API_KEY do .dev.vars"
             }
             value={command}
@@ -742,22 +744,23 @@ function AiDock({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub
             maxLength={1000}
           />
         </label>
-        <div className="composer-bar">
-          <button
-            type="button"
-            className="btn"
-            disabled={!brief.canUndo || busy}
-            onClick={() => run(() => stub.undo())}
-            title="Cofa ostatnią zmianę pytań (ręczną albo AI)"
-          >
-            <IconArrowBackUp size={17} aria-hidden /> Cofnij
-          </button>
-          <button className="btn btn-primary" disabled={!aiEnabled || busy || !command.trim()}>
-            <IconArrowUp size={17} stroke={2.2} aria-hidden /> {busy ? "AI pracuje…" : "Wykonaj"}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="bar-icon-btn"
+          disabled={!brief.canUndo || busy}
+          onClick={() => run(() => stub.undo())}
+          aria-label="Cofnij ostatnią zmianę pytań"
+          title="Cofnij ostatnią zmianę pytań (ręczną albo AI)"
+        >
+          <IconArrowBackUp size={19} />
+        </button>
+        <button className="btn-send" disabled={!aiEnabled || busy || !command.trim()}>
+          <span className="btn-send-label">{busy ? "AI pracuje…" : "Wykonaj"}</span>
+          <span className="btn-send-icon" aria-hidden>
+            <IconArrowUp size={18} stroke={2.4} />
+          </span>
+        </button>
       </div>
-      <p className="dock-note">AI zmienia tylko pytania, nie odpowiedzi. Każde polecenie możesz cofnąć.</p>
     </form>
   );
 }
