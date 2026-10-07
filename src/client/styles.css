@@ -2185,9 +2185,33 @@ textarea.input {
   text-align: center;
 }
 
+/* Kula na powitaniu (shader): płótno z poświatą jest większe niż kula, więc nachodzi pod tekst
+   jako tło, a układ liczy tylko samą kulę. */
+.home {
+  position: relative;
+  isolation: isolate;
+}
+
 .home-orb {
-  margin-bottom: 18px;
-  filter: drop-shadow(0 12px 24px rgba(63, 91, 240, 0.28));
+  position: relative;
+  z-index: -1;
+  display: grid;
+  place-items: center;
+  width: 100px;
+  height: 100px;
+  margin-bottom: 14px;
+}
+
+.home-orb > * {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+}
+
+.shader-orb {
+  display: block;
+  pointer-events: none;
 }
 
 .home-title {

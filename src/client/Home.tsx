@@ -5,7 +5,7 @@ import { questions } from "../shared/flow";
 import { briefFromTemplate, TEMPLATE_LIST } from "../shared/templates";
 import { createBrief } from "./api";
 import { briefName, firstName, MainHead, useApp } from "./AppShell";
-import { Orb } from "./Orb";
+import { ShaderOrb } from "./ShaderOrb";
 import { navigate, onLinkClick } from "./router";
 
 const SECONDS_PER_QUESTION = 12;
@@ -77,7 +77,9 @@ export function Home({ search }: { search: string }) {
       <div className="panel">
         <div className="panel-scroll">
           <div className="home">
-            <Orb size={72} className="home-orb" />
+            <div className="home-orb" aria-hidden>
+              <ShaderOrb size={240} />
+            </div>
             <h2 className="home-title">Cześć, {firstName(me.email)}</h2>
             <p className="home-lead">Dla kogo przygotujemy brief? Resztę ustawisz po drodze.</p>
 
