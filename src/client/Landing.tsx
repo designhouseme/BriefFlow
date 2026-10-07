@@ -112,25 +112,14 @@ export function Landing() {
         <section className="hero" aria-labelledby="hero-title">
           <HeroStage />
           <div className="hero-copy">
-            <h1 id="hero-title">Brief, który klient przechodzi jak rozmowę</h1>
+            <h1 id="hero-title">Klient klika. Ty masz brief.</h1>
             <p className="hero-lead">
-              Klient klika odpowiedzi, po jednym pytaniu. Może wybrać „Nie wiem” albo wrócić później tym samym linkiem,
-              a Ty widzisz brief na żywo.
+              Wysyłasz jeden link. Klient odpowiada na jedno pytanie naraz, głównie klikając, a każda odpowiedź od razu
+              trafia do Twojego briefu.
             </p>
             <div className="hero-form vt-panel" ref={heroForm}>
               {signIn()}
             </div>
-            <ul className="hero-facts">
-              <li>
-                <IconCheck size={16} stroke={2.4} aria-hidden /> Klient nie zakłada konta
-              </li>
-              <li>
-                <IconCheck size={16} stroke={2.4} aria-hidden /> Działa na telefonie
-              </li>
-              <li>
-                <IconCheck size={16} stroke={2.4} aria-hidden /> Dane briefów w UE
-              </li>
-            </ul>
           </div>
         </section>
 

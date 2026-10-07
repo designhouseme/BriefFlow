@@ -708,7 +708,7 @@ textarea.input {
   position: relative;
   width: min(100%, 860px);
   height: clamp(260px, 42svh, 400px);
-  margin-bottom: -6px;
+  margin-bottom: 36px;
 }
 
 .hero-orbit-line {
@@ -859,28 +859,6 @@ textarea.input {
 .signed-in .btn-send-wide .btn-send-icon {
   background: var(--accent-ink);
   color: var(--accent);
-}
-
-.hero-facts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px 20px;
-  margin: 22px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 14px;
-  color: var(--ink-2);
-}
-
-.hero-facts li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.hero-facts svg {
-  color: var(--ok);
 }
 
 /* Logowanie: ten sam pasek co na dole aplikacji */
