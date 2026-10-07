@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 
-// Jasny i ciemny motyw. Domyślnie jak w systemie (także gdy system zmieni się w trakcie);
-// wybór z przełącznika zapamiętuje przeglądarka i wtedy ma pierwszeństwo.
+// Jasny motyw jest podstawowy. Ciemny tylko z przełącznika w nagłówku; wybór zapamiętuje przeglądarka.
 
 export type Theme = "light" | "dark";
 const KEY = "dh-theme";
-const DARK = "(prefers-color-scheme: dark)";
 
 function stored(): Theme | null {
   try {
@@ -16,8 +14,6 @@ function stored(): Theme | null {
   }
 }
 
-const system = (): Theme => (matchMedia(DARK).matches ? "dark" : "light");
-
 export function applyStoredTheme() {
   const theme = stored();
   if (theme) document.documentElement.dataset.theme = theme;
@@ -25,20 +21,13 @@ export function applyStoredTheme() {
 
 export function useTheme() {
   const [choice, setChoice] = useState<Theme | null>(stored);
-  const [fromSystem, setFromSystem] = useState<Theme>(system);
-  const theme = choice ?? fromSystem;
+  const theme = choice ?? "light";
 
+  // Przełącznik jest w nagłówku każdego widoku; wszystkie egzemplarze trzymają ten sam wybór.
   useEffect(() => {
-    const media = matchMedia(DARK);
-    const onSystem = () => setFromSystem(media.matches ? "dark" : "light");
-    // Kilka przełączników (pasek ikon, szuflada na telefonie) trzyma ten sam wybór.
     const onChoice = (e: Event) => setChoice((e as CustomEvent<Theme>).detail);
-    media.addEventListener("change", onSystem);
     window.addEventListener("dh:theme", onChoice);
-    return () => {
-      media.removeEventListener("change", onSystem);
-      window.removeEventListener("dh:theme", onChoice);
-    };
+    return () => window.removeEventListener("dh:theme", onChoice);
   }, []);
 
   useEffect(() => {

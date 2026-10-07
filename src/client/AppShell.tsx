@@ -126,6 +126,7 @@ export function AppShell({ activeId, children }: { activeId: string | null; chil
   );
 }
 
+/** Przełącznik motywu w nagłówku panelu. Domyślnie jasny. */
 function ThemeButton({ className, size }: { className: string; size: number }) {
   const { theme, toggle } = useTheme();
   const label = theme === "dark" ? "Jasny motyw" : "Ciemny motyw";
@@ -153,7 +154,6 @@ function Rail({ onBriefs }: { onBriefs: () => void }) {
         <IconWorld size={21} stroke={1.7} />
       </a>
       <span className="rail-gap" />
-      <ThemeButton className="rail-btn" size={21} />
       <span className="rail-avatar" title={me.email} aria-label={`Zalogowano jako ${me.email}`}>
         {firstName(me.email)[0]}
       </span>
@@ -344,7 +344,6 @@ function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () =
           <strong>{firstName(me.email)}</strong>
           <span>{me.email}</span>
         </span>
-        <ThemeButton className="icon-btn account-theme" size={18} />
         <button
           className="icon-btn"
           aria-label="Wyloguj"
@@ -384,7 +383,10 @@ export function MainHead({
         {titleAction}
         {badge}
       </div>
-      {actions && <div className="main-actions">{actions}</div>}
+      <div className="main-actions">
+        {actions}
+        <ThemeButton className="btn btn-icon" size={18} />
+      </div>
     </header>
   );
 }
