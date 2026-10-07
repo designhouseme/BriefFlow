@@ -11,6 +11,7 @@ import {
   IconHelpCircle,
   IconLink,
   IconListCheck,
+  IconMessageQuestion,
   IconPlus,
   IconReceipt,
   IconRefresh,
@@ -288,23 +289,14 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="site-section faq" id="pytania" aria-labelledby="pytania-title">
-          <div className="section-intro">
+        <section className="site-section ask" id="pytania" aria-labelledby="pytania-title">
+          <div className="ask-intro">
             <h2 className="site-h2" id="pytania-title">
               Pytania
             </h2>
+            <p>Zapytaj tak, jak klient odpowiada w briefie: klikając.</p>
           </div>
-          <div className="faq-list">
-            {FAQ.map(([q, a]) => (
-              <details key={q}>
-                <summary>
-                  {q}
-                  <IconPlus className="faq-icon" size={18} aria-hidden />
-                </summary>
-                <p>{a}</p>
-              </details>
-            ))}
-          </div>
+          <AskThread />
         </section>
 
         <section className="finale" aria-labelledby="finale-title">
@@ -340,6 +332,53 @@ const FAQ: [string, string][] = [
   ],
   ["Gdzie są przechowywane dane?", "Na serwerach Cloudflare, w jurysdykcji Unii Europejskiej."],
 ];
+
+// --- Pytania jako rozmowa: klikasz pytanie, odpowiedź przychodzi jak w briefie ---
+
+function AskThread() {
+  const [asked, setAsked] = useState<number[]>([0]);
+  const thread = useRef<HTMLDivElement>(null);
+  const left = FAQ.map((_, i) => i).filter((i) => !asked.includes(i));
+
+  useEffect(() => {
+    const el = thread.current;
+    if (el && asked.length > 1) el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion() ? "auto" : "smooth" });
+  }, [asked]);
+
+  return (
+    <div className="ask-frame">
+      <div className="ask-thread" ref={thread} aria-live="polite">
+        <div className="bot">
+          <Orb size={28} className="avatar-orb" />
+          <div className="bubble bubble-bot ask-hello">O co chcesz zapytać? Wybierz pytanie poniżej.</div>
+        </div>
+        {asked.map((i) => (
+          <div className="turn ask-turn" key={i}>
+            <span className="bubble bubble-me">{FAQ[i][0]}</span>
+            <div className="bot">
+              <Orb size={28} className="avatar-orb" />
+              <div className="bubble bubble-bot ask-answer">{FAQ[i][1]}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="ask-choices" aria-label="Pytania do wyboru">
+        {left.map((i) => (
+          <button key={i} className="ask-chip" onClick={() => setAsked((a) => [...a, i])}>
+            <IconMessageQuestion size={17} stroke={1.9} aria-hidden />
+            {FAQ[i][0]}
+          </button>
+        ))}
+        {left.length === 0 && (
+          <button className="ask-chip ask-again" onClick={() => setAsked([0])}>
+            <IconRefresh size={17} stroke={1.9} aria-hidden />
+            Zacznij od nowa
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // --- Pierwszy ekran: kula i odpowiedzi krążące wokół niej ---
 
