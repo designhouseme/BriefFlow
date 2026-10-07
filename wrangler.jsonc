@@ -4,6 +4,11 @@
   "main": "src/server/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Produkcja ma jeden adres: własna domena w strefie designhouse.me. Bez workers.dev i podglądów wersji,
+  // bo ciasteczko sesji, sprawdzanie Origin i linki w mailach zakładają jeden origin.
+  "routes": [{ "pattern": "brieflow.designhouse.me", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/agents/*"]
