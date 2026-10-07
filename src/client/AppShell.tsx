@@ -19,7 +19,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { BriefSummary, Me } from "../shared/account";
 import { TEMPLATE_LIST } from "../shared/templates";
 import { ApiError, clientUrl, deleteBrief, getMe, listBriefs, logout, takePrimedMe } from "./api";
-import { Orb } from "./Orb";
+import { DhTile } from "./Brand";
 import { navigate, onLinkClick } from "./router";
 import { useTheme } from "./theme";
 import { Menu, Popover } from "./ui";
@@ -104,7 +104,7 @@ export function AppShell({ activeId, children }: { activeId: string | null; chil
   if (!value) {
     return (
       <div className="app is-loading">
-        <Orb size={48} className="vt-orb pulse-soft" />
+        <DhTile size={48} className="pulse-soft" />
       </div>
     );
   }
@@ -140,8 +140,8 @@ function ThemeButton({ className, size }: { className: string; size: number }) {
 function Rail({ onBriefs }: { onBriefs: () => void }) {
   return (
     <nav className="rail" aria-label="Aplikacja">
-      <a className="rail-home" href="/app" onClick={(e) => onLinkClick(e, "/app")} aria-label="DH Briefing, nowy brief">
-        <Orb size={40} className="vt-orb" />
+      <a className="rail-home" href="/app" onClick={(e) => onLinkClick(e, "/app")} aria-label="Design House Briefing, nowy brief">
+        <DhTile size={40} />
       </a>
       <button className="rail-btn is-active" onClick={onBriefs} aria-label="Briefy" title="Briefy">
         <IconMessages size={21} stroke={1.7} />

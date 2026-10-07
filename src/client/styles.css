@@ -274,6 +274,62 @@ img {
   view-transition-name: brand-orb;
 }
 
+/* --- Marka Design House --- */
+
+.dh-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 28%;
+  background: #0f1113;
+  color: #e6ff32;
+}
+
+.dh-tile svg {
+  width: 62%;
+  height: auto;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+}
+
+.wordmark img {
+  display: block;
+  width: auto;
+  height: 100%;
+}
+
+.wordmark-light,
+:root[data-theme="dark"] .wordmark-dark {
+  display: none !important;
+}
+
+:root[data-theme="dark"] .wordmark-light {
+  display: block !important;
+}
+
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lockup .wordmark {
+  height: 20px;
+}
+
+.lockup-product {
+  padding-left: 12px;
+  border-left: 1px solid var(--line-2);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -0.01em;
+  color: var(--ink-2);
+}
+
 /* --- Przyciski --- */
 
 .btn {
@@ -1312,6 +1368,15 @@ textarea.input {
   color: #c9ccd4;
 }
 
+.foot-brand {
+  display: inline-flex;
+  height: 18px;
+}
+
+.foot-brand .wordmark {
+  height: 18px;
+}
+
 .site-foot {
   display: flex;
   flex-wrap: wrap;
@@ -1321,6 +1386,7 @@ textarea.input {
   margin: 0 auto;
   padding: 24px 24px 40px;
   border-top: 1px solid var(--line);
+  align-items: center;
   font-size: 13.5px;
   color: var(--ink-3);
 }
@@ -2191,6 +2257,16 @@ a.card:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.card-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f6f6f7;
 }
 
 .card-who {
@@ -3384,6 +3460,23 @@ a.card:hover {
   padding: 12px 20px;
 }
 
+.client-brand {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding-right: 14px;
+  margin-right: 2px;
+  border-right: 1px solid var(--line-2);
+}
+
+.client-wordmark {
+  height: 18px;
+}
+
+.client-tile {
+  display: none;
+}
+
 .client-head-text {
   flex: 1;
   min-width: 0;
@@ -4392,6 +4485,17 @@ button.quick:hover {
   .client-head {
     padding: 10px 16px;
   }
+  .client-wordmark {
+    display: none;
+  }
+  .client-tile {
+    display: grid;
+  }
+  .client-brand {
+    padding-right: 0;
+    border-right: 0;
+  }
+
   .client-panel {
     width: 100%;
     margin: 0;

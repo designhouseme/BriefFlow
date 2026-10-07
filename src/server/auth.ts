@@ -76,18 +76,23 @@ async function devSession(env: Env): Promise<Session> {
 
 function codeEmail(code: string) {
   const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
-  const text = `Twój kod do DH Briefing: ${spaced}\n\nWpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut.\nJeśli to nie Ty, zignoruj tę wiadomość.\n\nDesign House`;
-  const html = `<!doctype html><html lang="pl"><body style="margin:0;background:#f4f5f8;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#14161c">
+  const text = `Twój kod do Briefingu Design House: ${spaced}\n\nWpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut.\nJeśli to nie Ty, zignoruj tę wiadomość.\n\nDesign House, designhouse.me`;
+  // Mail w barwach Design House: płótno, biała karta, znak z limonką na czarnym kafelku.
+  const html = `<!doctype html><html lang="pl"><body style="margin:0;background:#fafaf9;font-family:Geist,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#111113">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border-radius:20px;padding:32px">
-<tr><td style="font-size:15px;font-weight:700">DH Briefing</td></tr>
-<tr><td style="padding-top:24px;font-size:15px;line-height:1.5;color:#4a4f5c">Twój kod logowania:</td></tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border:1px solid #e8e8e5;border-radius:16px;padding:32px">
+<tr><td><table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="width:28px;height:28px;background:#0f1113;border-radius:8px;text-align:center;vertical-align:middle"><span style="display:inline-block;width:12px;height:12px;background:#e6ff32;border-radius:3px"></span></td>
+<td style="padding-left:10px;font-size:15px;font-weight:700">Design House</td>
+<td style="padding-left:10px;font-size:15px;color:#62626b">Briefing</td>
+</tr></table></td></tr>
+<tr><td style="padding-top:28px;font-size:15px;line-height:1.5;color:#3f3f46">Twój kod logowania:</td></tr>
 <tr><td style="padding:12px 0 20px;font-size:34px;font-weight:700;letter-spacing:6px">${spaced}</td></tr>
-<tr><td style="font-size:14px;line-height:1.5;color:#4a4f5c">Wpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut. Jeśli to nie Ty, zignoruj tę wiadomość.</td></tr>
+<tr><td style="font-size:14px;line-height:1.5;color:#3f3f46">Wpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut. Jeśli to nie Ty, zignoruj tę wiadomość.</td></tr>
 </table>
-<p style="font-size:12px;color:#7a7f8c;margin-top:16px">Design House</p>
+<p style="font-size:12px;color:#62626b;margin-top:16px">Design House, designhouse.me</p>
 </td></tr></table></body></html>`;
-  return { text, html, subject: `${spaced} to Twój kod do DH Briefing` };
+  return { text, html, subject: `${spaced} to Twój kod do Briefingu Design House` };
 }
 
 /** POST /api/auth/start { email } → wysyła kod. W trybie dev kod wraca też w odpowiedzi (mail idzie tylko do logu). */
@@ -108,7 +113,7 @@ export async function startLogin(request: Request, env: Env): Promise<Response> 
   try {
     await env.EMAIL.send({
       to: email,
-      from: { email: env.EMAIL_FROM, name: "DH Briefing" },
+      from: { email: env.EMAIL_FROM, name: "Design House" },
       subject: message.subject,
       text: message.text,
       html: message.html,

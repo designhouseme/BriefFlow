@@ -1,4 +1,4 @@
-import { IconArrowUp, IconCircleCheck, IconFileText, IconPencil, IconWand, IconX } from "@tabler/icons-react";
+import { IconArrowUp, IconCircleCheck, IconFileText, IconPencil, IconWand, IconWorld, IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BriefSummary } from "../shared/account";
 import { questions } from "../shared/flow";
@@ -73,7 +73,7 @@ export function Home({ search }: { search: string }) {
 
   return (
     <>
-      <MainHead title="DH Briefing" />
+      <MainHead title="Nowy brief" />
       <div className="panel">
         <div className="panel-scroll">
           <div className="home">
@@ -84,8 +84,8 @@ export function Home({ search }: { search: string }) {
             <div className="home-cards">
               <button className="card card-dark" onClick={() => pickTemplate("www")} aria-pressed={templateId === "www"}>
                 <span className="card-top">
-                  <span className="card-who">
-                    <Orb size={22} /> Design House
+                  <span className="card-icon" aria-hidden>
+                    <IconWorld size={18} stroke={1.9} />
                   </span>
                   <span className="badge badge-blue">{templateId === "www" ? "Wybrany" : "Szablon"}</span>
                 </span>

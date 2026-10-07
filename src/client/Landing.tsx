@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Me } from "../shared/account";
 import { getMe, primeMe } from "./api";
 import { AuthForm } from "./AuthForm";
+import { BrandLockup, Wordmark } from "./Brand";
 import { Orb } from "./Orb";
 import { navigate } from "./router";
 
@@ -53,9 +54,8 @@ export function Landing() {
   return (
     <div className="site">
       <header className="site-nav">
-        <a className="brand" href="/">
-          <Orb size={30} className="vt-orb" />
-          <span>DH Briefing</span>
+        <a className="brand" href="/" aria-label="Design House Briefing, strona główna">
+          <BrandLockup />
         </a>
         <nav className="site-links" aria-label="Sekcje">
           <a href="#jak">Jak to działa</a>
@@ -346,8 +346,10 @@ export function Landing() {
       </main>
 
       <footer className="site-foot">
-        <span>DH Briefing, narzędzie Design House</span>
-        <span>Briefy przechowujemy w UE</span>
+        <a className="foot-brand" href="https://designhouse.me" aria-label="Design House">
+          <Wordmark />
+        </a>
+        <span>Briefing to narzędzie Design House. Briefy przechowujemy w UE.</span>
       </footer>
     </div>
   );
