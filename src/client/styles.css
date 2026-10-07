@@ -620,6 +620,33 @@ textarea.input {
   line-height: 1.45;
 }
 
+.composer-date input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 15.5px;
+}
+
+/* Dane, które agencja już zna, do potwierdzenia przez klienta */
+.prefill {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px dashed var(--line-2);
+  background: var(--input);
+  color: var(--ink);
+  font-size: 15px;
+  white-space: pre-wrap;
+}
+
+.field .prefill {
+  margin-top: 12px;
+}
+
 .send {
   display: grid;
   place-items: center;
@@ -1408,6 +1435,133 @@ textarea.input {
   font-weight: 600;
 }
 
+/* Przed startem: Baza, Do uwagi, Do wyceny */
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.check-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--r-xl);
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.check-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.check-head h2 {
+  flex: 1;
+  font-size: 15.5px;
+  font-weight: 700;
+}
+
+.check-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 12px;
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+}
+
+.check-count {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.check-lede,
+.check-note {
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+
+.check-list {
+  display: grid;
+  gap: 2px;
+  margin: 0 -6px;
+  padding: 0;
+  list-style: none;
+}
+
+.check-item {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 14px;
+  text-align: left;
+  transition: background 0.16s;
+}
+
+.check-item:hover {
+  background: var(--card-muted);
+}
+
+.check-item strong {
+  font-weight: 650;
+}
+
+.check-item span {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.check-more {
+  padding: 2px 6px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.flag {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: #f7dedb;
+  color: #6e322d;
+  font-size: 14px;
+}
+
+.flag svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.pill-quote {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f6e7cf;
+  color: #7a5522;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.pill.is-on .pill-quote {
+  background: rgba(255, 250, 244, 0.18);
+  color: var(--accent-ink);
+}
+
 .copy-row {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr) auto;
@@ -1944,6 +2098,10 @@ textarea.input {
 /* --- Telefon i wąskie okna --- */
 
 @media (max-width: 860px) {
+  .checks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .shell.is-fill .topbar-right {
     display: none;
   }

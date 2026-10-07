@@ -1,18 +1,22 @@
 import {
   IconAlertCircle,
+  IconAlertTriangle,
   IconArrowBackUp,
   IconCheck,
   IconCopy,
   IconExternalLink,
   IconHistory,
   IconLink,
+  IconListCheck,
   IconPlus,
+  IconReceipt,
   IconTrash,
   IconUserShare,
   IconWand,
   IconX,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
+import { baseStatus, type Flag, quoteItems, redFlags } from "../shared/checks";
 import { openQuestions } from "../shared/flow";
 import { isSectionVisible, progress } from "../shared/ops";
 import {
@@ -134,6 +138,7 @@ function AgencyView({
   const [editing, setEditing] = useState<string | null>(null);
   const p = progress(brief);
   const open = openQuestions(brief).length;
+  const flags = redFlags(brief);
 
   return (
     <div className="agency">
@@ -150,11 +155,13 @@ function AgencyView({
         </div>
 
         <SharePanel id={id} agencyToken={token} stub={stub} />
+        <Checks brief={brief} flags={flags} />
 
         {brief.sections.map((section, index) => (
           <SectionBlock
             key={section.id}
             index={index}
+            flags={flags}
             brief={brief}
             section={section}
             stub={stub}
@@ -169,6 +176,93 @@ function AgencyView({
       </main>
       <AiBar brief={brief} stub={stub} run={run} aiEnabled={aiEnabled} />
     </div>
+  );
+}
+
+/** Przed startem: czego brakuje w Bazie, na co reagować od razu i co idzie do wyceny. */
+function Checks({ brief, flags }: { brief: Brief; flags: Flag[] }) {
+  const base = baseStatus(brief);
+  const quotes = quoteItems(brief);
+  const jump = (fieldId: string) => document.getElementById(fieldId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  const SHOWN = 6;
+
+  return (
+    <section className="checks" aria-label="Przed startem">
+      <div className="check-card">
+        <div className="check-head">
+          <span className={`check-icon ${base.missing.length ? "tone-1" : "tone-3"}`} aria-hidden>
+            {base.missing.length ? <IconListCheck size={20} stroke={1.9} /> : <IconCheck size={20} stroke={2.4} />}
+          </span>
+          <h2>Baza</h2>
+          <span className="check-count">
+            {base.done}/{base.total}
+          </span>
+        </div>
+        <p className="check-lede">{base.missing.length ? "Bez tego nie startujemy:" : "Komplet, można startować."}</p>
+        {base.missing.length > 0 && (
+          <ul className="check-list">
+            {base.missing.slice(0, SHOWN).map((f) => (
+              <li key={f.id}>
+                <button className="check-item" onClick={() => jump(f.id)}>
+                  {f.label}
+                </button>
+              </li>
+            ))}
+            {base.missing.length > SHOWN && <li className="check-more">i {base.missing.length - SHOWN} więcej</li>}
+          </ul>
+        )}
+      </div>
+
+      <div className="check-card">
+        <div className="check-head">
+          <span className={`check-icon ${flags.length ? "tone-4" : "tone-3"}`} aria-hidden>
+            <IconAlertTriangle size={20} stroke={1.9} />
+          </span>
+          <h2>Do uwagi</h2>
+          <span className="check-count">{flags.length}</span>
+        </div>
+        {flags.length ? (
+          <ul className="check-list">
+            {flags.map((flag) => (
+              <li key={flag.title}>
+                <button className="check-item" onClick={() => jump(flag.fieldId)}>
+                  <strong>{flag.title}</strong>
+                  <span>{flag.advice}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="check-lede">Nic niepokojącego w odpowiedziach.</p>
+        )}
+      </div>
+
+      <div className="check-card">
+        <div className="check-head">
+          <span className="check-icon tone-2" aria-hidden>
+            <IconReceipt size={20} stroke={1.9} />
+          </span>
+          <h2>Do wyceny</h2>
+          <span className="check-count">{quotes.length}</span>
+        </div>
+        {quotes.length ? (
+          <>
+            <ul className="check-list">
+              {quotes.map((item) => (
+                <li key={item.fieldId + item.text}>
+                  <button className="check-item" onClick={() => jump(item.fieldId)}>
+                    {item.text}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="check-note">Do podsumowania: w zakresie albo poza nim, z osobną wyceną.</p>
+          </>
+        ) : (
+          <p className="check-lede">Nic poza podstawowym zakresem.</p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -250,6 +344,7 @@ function CopyRow({
 
 function SectionBlock({
   index,
+  flags,
   brief,
   section,
   stub,
@@ -258,6 +353,7 @@ function SectionBlock({
   setEditing,
 }: {
   index: number;
+  flags: Flag[];
   brief: Brief;
   section: Section;
   stub: BriefStub;
@@ -294,6 +390,7 @@ function SectionBlock({
           run={run}
           editing={editing === field.id}
           setEditing={setEditing}
+          flags={flags.filter((f) => f.fieldId === field.id)}
         />
       ))}
       {section.fields.length === 0 && <p className="muted small">Sekcja jest pusta.</p>}

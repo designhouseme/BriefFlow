@@ -33,7 +33,8 @@ const SYSTEM = `Edytujesz brief: kwestionariusz, który agencja (strony WWW, apl
 
 Zasady:
 - Rób dokładnie to, o co prosi polecenie. Nie przebudowuj innych części briefu.
-- Klienci nie lubią pisać, wolą klikać. Domyślnie używaj pól z wyborem: single_choice, multi_choice, yes_no, scale (suwak między dwiema skrajnościami) i material (prośba o materiał: logo, zdjęcia, dokumenty). short_text i long_text tylko wtedy, gdy odpowiedzi nie da się przewidzieć (nazwa, adres, link, własny opis). Wtedy wypełnij why_text.
+- Klienci nie lubią pisać, wolą klikać. Domyślnie używaj pól z wyborem: single_choice, multi_choice, yes_no, scale (skala 1–5 między dwiema skrajnościami) i material (prośba o materiał: logo, zdjęcia, dokumenty). short_text i long_text tylko wtedy, gdy odpowiedzi nie da się przewidzieć (nazwa, adres, link, własny opis). Wtedy wypełnij why_text.
+- Typy ze stałymi odpowiedziami (nie podawaj im options): confirm, gdy agencja zna już odpowiedź (dane firmy, adres, godziny) i klient ma ją tylko sprawdzić; wtedy wpisz ją w prefill. area dla obszaru działania (miasto, region, cała Polska). deadline dla terminów (gotowe przedziały albo konkretna data). consent dla oświadczeń do potwierdzenia, np. prawa do zdjęć; label to wtedy samo zdanie oświadczenia.
 - Każde pole ma automatycznie przyciski „Nie wiem” i „Pomiń”, a pola z allow_other także opcję „Inne…”. Nie dodawaj takich opcji samodzielnie.
 - Opcje: 2–8, krótkie, konkretne, nienachodzące na siebie. Pytania krótkie, językiem klienta, bez żargonu (zamiast „CTA” pisz „co odwiedzający ma zrobić”).
 - required: true tylko dla pytań, bez których agencja nie zacznie projektu (tak zwana Baza: cel, główna grupa klientów, główna akcja, materiały, domena, termin, budżet, osoba decyzyjna).
@@ -64,6 +65,7 @@ const FIELD_PROPS = {
       "Etykiety opcji dla single_choice i multi_choice (2–8). Dla pozostałych typów pusta lista. Bez „Nie wiem” i „Inne”, bo są dodawane automatycznie.",
   },
   allow_other: { type: "boolean", description: "Czy dodać opcję „Inne…” z polem tekstowym (tylko pola z wyborem)." },
+  prefill: nullableString("Tylko dla confirm: to, co agencja już wie i klient ma potwierdzić. Dla innych typów null."),
   quote_options: {
     type: "array",
     items: { type: "string" },
@@ -168,6 +170,7 @@ function fieldInput(brief: Brief, input: ToolInput): FieldInput {
     options: Array.isArray(input.options) ? input.options.map(String) : [],
     allowOther: Boolean(input.allow_other),
     quoteOptions: Array.isArray(input.quote_options) ? input.quote_options.map(String) : [],
+    prefill: str(input.prefill),
     scaleMin: str(input.scale_min_label),
     scaleMax: str(input.scale_max_label),
     required: Boolean(input.required),
@@ -252,6 +255,7 @@ function describeBrief(brief: Brief): string {
         line += ` opcje: ${labels.join(" | ")}${field.allowOther ? " (+Inne)" : ""}`;
       }
       if (field.type === "scale") line += ` skala: ${field.scaleMin} → ${field.scaleMax}`;
+      if (field.type === "confirm") line += ` do potwierdzenia: „${field.prefill ?? ""}”`;
       const answer = describeAnswer(field, brief.answers[field.id]).slice(0, 200);
       line += ` → odpowiedź klienta: ${answer}`;
       lines.push(line);

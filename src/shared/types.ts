@@ -10,7 +10,11 @@ export type FieldType =
   | "scale"
   | "material"
   | "short_text"
-  | "long_text";
+  | "long_text"
+  | "confirm"
+  | "area"
+  | "deadline"
+  | "consent";
 
 export const FIELD_TYPES: { type: FieldType; label: string; hint: string }[] = [
   { type: "single_choice", label: "Jeden wybór", hint: "Kafelki, jedna odpowiedź" },
@@ -20,6 +24,10 @@ export const FIELD_TYPES: { type: FieldType; label: string; hint: string }[] = [
   { type: "material", label: "Materiał", hint: "Logo, zdjęcia, teksty do dostarczenia" },
   { type: "short_text", label: "Krótki tekst", hint: "Nazwa, adres, link" },
   { type: "long_text", label: "Dłuższy tekst", hint: "Opis, tylko gdy nie da się klikać" },
+  { type: "confirm", label: "Potwierdzenie", hint: "Wpisujesz, co wiesz, klient klika „Zgadza się”" },
+  { type: "area", label: "Obszar działania", hint: "Miasto, region, cała Polska" },
+  { type: "deadline", label: "Termin", hint: "Gotowe terminy albo konkretna data" },
+  { type: "consent", label: "Oświadczenie", hint: "Klient potwierdza zdanie, z datą" },
 ];
 
 export const TEXT_TYPES: FieldType[] = ["short_text", "long_text"];
@@ -38,6 +46,41 @@ export const MATERIAL_OPTIONS: Option[] = [
   { id: "link", label: "Mam, podam link" },
   { id: "need_help", label: "Nie mam, potrzebuję pomocy" },
 ];
+
+// Typy ze stałymi odpowiedziami: klient tylko klika, czasem z dopiskiem (miasto, data, poprawka).
+export const CONFIRM_OPTIONS: Option[] = [
+  { id: "ok", label: "Zgadza się" },
+  { id: "fix", label: "Trzeba poprawić" },
+];
+
+export const AREA_OPTIONS: Option[] = [
+  { id: "miasto", label: "Jedno miasto" },
+  { id: "okolica", label: "Miasto i okolice" },
+  { id: "region", label: "Województwo lub region" },
+  { id: "polska", label: "Cała Polska" },
+  { id: "zagranica", label: "Także za granicą" },
+];
+
+export const DEADLINE_OPTIONS: Option[] = [
+  { id: "asap", label: "Jak najszybciej" },
+  { id: "miesiac", label: "Do miesiąca" },
+  { id: "kwartal", label: "W ciągu 1–3 miesięcy" },
+  { id: "data", label: "Na konkretną datę" },
+  { id: "luz", label: "Nie ma pośpiechu" },
+];
+
+export const CONSENT_OPTIONS: Option[] = [
+  { id: "yes", label: "Potwierdzam" },
+  { id: "no", label: "Trzeba to wyjaśnić" },
+];
+
+/** Która stała odpowiedź prosi o dopisek. */
+export const NEEDS_TEXT: Partial<Record<FieldType, string[]>> = {
+  material: ["link"],
+  confirm: ["fix"],
+  area: ["miasto", "okolica", "region"],
+  deadline: ["data"],
+};
 
 export const YES_NO_OPTIONS: Option[] = [
   { id: "yes", label: "Tak" },
@@ -66,6 +109,8 @@ export interface Field {
   origin: Actor | "template";
   /** Dlaczego AI dodało lub zmieniło pole. Widoczne dla agencji. */
   reason?: string;
+  /** Dla potwierdzenia: to, co agencja już wie (np. z wizytówki Google). Klient tylko to sprawdza. */
+  prefill?: string;
 }
 
 export interface Section {
@@ -117,6 +162,7 @@ export interface FieldInput {
   showIf?: ShowIf | null;
   /** Etykiety opcji oznaczonych „wycena”. */
   quoteOptions?: string[];
+  prefill?: string;
 }
 
 export interface LogEntry {

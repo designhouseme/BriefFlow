@@ -63,6 +63,13 @@ const WWW: S[] = [
         allowOther: true,
         required: true,
       },
+      {
+        id: "f_obszar",
+        type: "area",
+        label: "Gdzie działacie?",
+        help: "Od tego zależy, pod jakie miejscowości ustawimy stronę w Google.",
+        required: true,
+      },
       { id: "f_ma_strone", type: "yes_no", label: "Czy macie już stronę internetową?" },
       {
         id: "f_adres_strony",
@@ -318,6 +325,13 @@ const WWW: S[] = [
         required: true,
       },
       {
+        id: "f_prawa",
+        type: "consent",
+        label: "Mamy prawa do zdjęć i tekstów, które przekażemy na stronę.",
+        help: "Zdjęcia ze stocków też są w porządku, jeśli mamy licencję.",
+        required: true,
+      },
+      {
         id: "f_teksty",
         type: "single_choice",
         label: "Teksty na stronę",
@@ -352,14 +366,9 @@ const WWW: S[] = [
     fields: [
       {
         id: "f_termin",
-        type: "single_choice",
+        type: "deadline",
         label: "Kiedy strona powinna działać?",
-        options: [
-          ["miesiac", "Do miesiąca"],
-          ["kwartal", "W ciągu 1–3 miesięcy"],
-          ["luz", "Nie ma pośpiechu"],
-        ],
-        allowOther: true,
+        help: "Termin liczymy od dnia, w którym mamy komplet materiałów.",
         required: true,
       },
       {

@@ -1,5 +1,33 @@
 import {
   IconAdjustmentsHorizontal,
+  IconAward,
+  IconBolt,
+  IconCalendarCheck,
+  IconCertificate,
+  IconChecks,
+  IconCircleCheck,
+  IconFlag,
+  IconMap2,
+  IconMessageQuestion,
+  IconPencil,
+  IconSignature,
+  IconClock,
+  IconConfetti,
+  IconHeartHandshake,
+  IconLeaf,
+  IconMinus,
+  IconMoodSmile,
+  IconPhoneOff,
+  IconRocket,
+  IconScale,
+  IconSpeakerphone,
+  IconStar,
+  IconSun,
+  IconTag,
+  IconThumbDown,
+  IconUrgent,
+  IconUserCheck,
+  IconUserQuestion,
   IconAlignLeft,
   IconBadge,
   IconBox,
@@ -87,6 +115,31 @@ import type { Answer, Field, FieldType, Option, Section } from "../shared/types"
 type Rule = [RegExp, Icon];
 
 const OPTION_RULES: Rule[] = [
+  [/nikt nie oddzwoni/, IconPhoneOff],
+  [/pilna|awari/, IconUrgent],
+  [/planowan/, IconCalendarCheck],
+  [/porównuj|porównan/, IconScale],
+  [/poleceni/, IconHeartHandshake],
+  [/opini/, IconStar],
+  [/certyfikat|uprawnieni/, IconCertificate],
+  [/doświadczeni/, IconAward],
+  [/gwaranc/, IconShieldCheck],
+  [/jasne ceny|cennik/, IconTag],
+  [/ukrytych koszt/, IconReceipt2],
+  [/jakości/, IconThumbDown],
+  [/opóźnie/, IconHourglass],
+  [/nieznan/, IconUserQuestion],
+  [/24 godzin/, IconClock],
+  [/godziny/, IconBolt],
+  [/samego dnia/, IconSun],
+  [/kilku dni/, IconCalendar],
+  [/per ty/, IconMoodSmile],
+  [/per pan/, IconUserCheck],
+  [/sezon/, IconLeaf],
+  [/targi|wydarzeni/, IconConfetti],
+  [/kampani/, IconSpeakerphone],
+  [/otwarci/, IconRocket],
+  [/nie ma konkretn/, IconMinus],
   [/newsletter/, IconMail],
   [/whatsapp|messenger|czat/, IconBrandWhatsapp],
   [/telefon|zadzwoni/, IconPhone],
@@ -148,20 +201,20 @@ const OPTION_RULES: Rule[] = [
   [/strona|www|internet/, IconWorld],
 ];
 
-/** Stałe odpowiedzi mają stałe ikony. */
-const FIXED: Record<string, Icon> = {
-  yes: IconCheck,
-  no: IconX,
-  will_send: IconMail,
-  link: IconLink,
-  need_help: IconLifebuoy,
-  __other: IconDots,
+/** Stałe odpowiedzi mają stałe ikony, osobno dla każdego typu („yes” w oświadczeniu to co innego niż w tak/nie). */
+const FIXED: Partial<Record<FieldType, Record<string, Icon>>> = {
+  yes_no: { yes: IconCheck, no: IconX },
+  material: { will_send: IconMail, link: IconLink, need_help: IconLifebuoy },
+  confirm: { ok: IconCircleCheck, fix: IconPencil },
+  area: { miasto: IconMapPin, okolica: IconMap2, region: IconMap, polska: IconFlag, zagranica: IconWorld },
+  deadline: { asap: IconBolt, miesiac: IconHourglass, kwartal: IconCalendarMonth, data: IconCalendarEvent, luz: IconCoffee },
+  consent: { yes: IconSignature, no: IconMessageQuestion },
 };
 
 export function optionIcon(field: Field, option: Option): Icon {
-  if ((field.type === "yes_no" || field.type === "material" || option.id === "__other") && FIXED[option.id]) {
-    return FIXED[option.id];
-  }
+  if (option.id === "__other") return IconDots;
+  const fixed = FIXED[field.type]?.[option.id];
+  if (fixed) return fixed;
   const label = option.label.toLowerCase();
   return OPTION_RULES.find(([re]) => re.test(label))?.[1] ?? IconCircleDot;
 }
@@ -171,6 +224,7 @@ export const TONES = 6;
 export const toneOf = (index: number) => `tone-${(index % TONES) + 1}`;
 
 const SECTION_RULES: Rule[] = [
+  [/dlaczego|argument|przekon/, IconAward],
   [/firm|o was|o nas/, IconBuildingStore],
   [/cel/, IconTarget],
   [/zakres|funkcj/, IconLayoutGrid],
@@ -194,6 +248,10 @@ export const FIELD_TYPE_ICON: Record<FieldType, Icon> = {
   material: IconPaperclip,
   short_text: IconCursorText,
   long_text: IconAlignLeft,
+  confirm: IconChecks,
+  area: IconMapPin,
+  deadline: IconCalendarClock,
+  consent: IconSignature,
 };
 
 /** Ikona do dymka z odpowiedzią: wybrana opcja, „nie wiem” albo „na później”. Wielokrotny wybór i tekst bez ikony. */

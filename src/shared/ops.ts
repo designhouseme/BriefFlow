@@ -2,13 +2,19 @@
 // więc walidacja jest w jednym miejscu. Błędy mają polskie komunikaty, bo trafiają do UI i do modelu.
 
 import {
+  AREA_OPTIONS,
   type Answer,
   type Brief,
   CHOICE_TYPES,
+  CONFIRM_OPTIONS,
+  CONSENT_OPTIONS,
+  DEADLINE_OPTIONS,
   type Field,
   type FieldInput,
+  type FieldType,
   FIELD_TYPES,
   MATERIAL_OPTIONS,
+  NEEDS_TEXT,
   type Option,
   type Section,
   type ShowIf,
@@ -44,12 +50,30 @@ export function allFields(brief: Brief): Field[] {
   return brief.sections.flatMap((s) => s.fields);
 }
 
-/** Opcje, które pole faktycznie pokazuje (dla yes_no i materiału stałe). */
+const FIXED_OPTIONS: Partial<Record<FieldType, Option[]>> = {
+  yes_no: YES_NO_OPTIONS,
+  material: MATERIAL_OPTIONS,
+  confirm: CONFIRM_OPTIONS,
+  area: AREA_OPTIONS,
+  deadline: DEADLINE_OPTIONS,
+  consent: CONSENT_OPTIONS,
+};
+
+/** Opcje, które pole faktycznie pokazuje (typy ze stałymi odpowiedziami mają je wbudowane). */
 export function optionsOf(field: Field): Option[] {
-  if (field.type === "yes_no") return YES_NO_OPTIONS;
-  if (field.type === "material") return MATERIAL_OPTIONS;
-  return field.options ?? [];
+  return FIXED_OPTIONS[field.type] ?? field.options ?? [];
 }
+
+export const hasFixedOptions = (type: FieldType) => type in FIXED_OPTIONS;
+
+/** Czy ta odpowiedź prosi o dopisek (miasto, data, link, poprawka). */
+export const needsText = (type: FieldType, value: unknown) =>
+  value === "__other" || (typeof value === "string" && Boolean(NEEDS_TEXT[type]?.includes(value)));
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export const formatDate = (iso: string) =>
+  DATE.test(iso) ? new Date(`${iso}T12:00:00`).toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" }) : iso;
 
 function cleanText(value: string | undefined, max: number, what: string): string | undefined {
   const text = value?.trim();
@@ -134,6 +158,10 @@ export function buildField(
     field.scaleMin = cleanText(input.scaleMin, 40, "Opis skali") ?? "Mało";
     field.scaleMax = cleanText(input.scaleMax, 40, "Opis skali") ?? "Dużo";
   }
+  if (input.type === "confirm") {
+    field.prefill = cleanText(input.prefill, 600, "Treść do potwierdzenia");
+    if (!field.prefill) throw new OpError("Potwierdzenie potrzebuje treści, którą klient ma sprawdzić.");
+  }
   const showIf = validateShowIf(brief, input.showIf, meta.id);
   if (showIf) field.showIf = showIf;
   return field;
@@ -151,6 +179,7 @@ export function fieldToInput(field: Field): FieldInput {
     required: field.required,
     showIf: field.showIf ?? null,
     quoteOptions: field.options?.filter((o) => o.quote).map((o) => o.label),
+    prefill: field.prefill,
   };
 }
 
@@ -332,11 +361,18 @@ export function normalizeAnswer(field: Field, input: Pick<Answer, "status" | "va
   switch (field.type) {
     case "single_choice":
     case "yes_no":
-    case "material": {
+    case "material":
+    case "confirm":
+    case "area":
+    case "deadline":
+    case "consent": {
       const value = input.value;
       if (value === "__other" && field.allowOther) return { status: "answered", value, other };
       if (typeof value !== "string" || !ids.has(value)) throw new OpError("Nieprawidłowa opcja.");
-      return { status: "answered", value, other: field.type === "material" && value === "link" ? other : undefined };
+      if (field.type === "deadline" && value === "data" && other && !DATE.test(other)) {
+        throw new OpError("Nieprawidłowa data.");
+      }
+      return { status: "answered", value, other: needsText(field.type, value) ? other : undefined };
     }
     case "multi_choice": {
       if (!Array.isArray(input.value)) throw new OpError("Oczekiwano listy opcji.");
@@ -369,8 +405,14 @@ export function describeAnswer(field: Field, answer: Answer | undefined): string
   const v = answer.value;
   if (Array.isArray(v)) return v.map(label).join(", ");
   if (field.type === "scale") return `${v}/5 (${field.scaleMin} → ${field.scaleMax})`;
-  if (typeof v === "string" && (CHOICE_TYPES.includes(field.type) || field.type === "yes_no" || field.type === "material")) {
-    return label(v) + (field.type === "material" && answer.other ? ` (${answer.other})` : "");
+  if (field.type === "confirm") {
+    return v === "fix" ? `Poprawka: ${answer.other ?? "do ustalenia"}` : `Zgadza się: ${field.prefill ?? ""}`;
+  }
+  if (field.type === "deadline" && v === "data") {
+    return answer.other ? `Na konkretną datę: ${formatDate(answer.other)}` : label(v);
+  }
+  if (typeof v === "string" && (CHOICE_TYPES.includes(field.type) || hasFixedOptions(field.type))) {
+    return label(v) + (v !== "__other" && answer.other ? ` (${answer.other})` : "");
   }
   return String(v ?? "");
 }

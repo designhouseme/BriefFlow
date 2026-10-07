@@ -44,6 +44,20 @@ export function redFlags(brief: Brief): Flag[] {
         advice: "To punkt z Bazy. Dopytaj na rozmowie, bez tego nie startujemy.",
       });
     }
+    if (field.type === "consent" && picked(a, "no")) {
+      flags.push({
+        fieldId: field.id,
+        title: `Klient nie potwierdził: ${field.label}`,
+        advice: "Wyjaśnij to przed startem i zapisz ustalenie w podsumowaniu.",
+      });
+    }
+    if (field.type === "confirm" && picked(a, "fix")) {
+      flags.push({
+        fieldId: field.id,
+        title: `Klient poprawił: ${field.label}`,
+        advice: a?.other ? `Nowa wersja: ${a.other}` : "Klient zaznaczył błąd, ale nie wpisał poprawki. Dopytaj.",
+      });
+    }
     if (field.type === "material" && picked(a, "will_send")) {
       flags.push({
         fieldId: field.id,
@@ -78,7 +92,7 @@ export function redFlags(brief: Brief): Flag[] {
   const materialsMissing = visible.some(
     (f) => f.type === "material" && !(picked(brief.answers[f.id], "link") || picked(brief.answers[f.id], "will_send")),
   );
-  if (picked(answer("f_termin"), "miesiac") && materialsMissing) {
+  if (picked(answer("f_termin"), "asap", "miesiac") && materialsMissing) {
     flags.push({
       fieldId: "f_termin",
       title: "Krótki termin, a materiałów jeszcze nie ma",

@@ -1,4 +1,4 @@
-import { IconCheck, IconX } from "@tabler/icons-react";
+import { IconCheck, IconReceipt, IconX } from "@tabler/icons-react";
 import { useState } from "react";
 import { FIELD_TYPE_ICON } from "./icons";
 import { fieldToInput } from "../shared/ops";
@@ -12,6 +12,14 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<FieldInput>) => setDraft((d) => ({ ...d, ...patch }));
   const isChoice = CHOICE_TYPES.includes(draft.type);
+  const labels = optionsText.split("\n").map((l) => l.trim()).filter(Boolean);
+  const quoted = (label: string) => (draft.quoteOptions ?? []).some((q) => q.toLowerCase() === label.toLowerCase());
+  const toggleQuote = (label: string) =>
+    set({
+      quoteOptions: quoted(label)
+        ? (draft.quoteOptions ?? []).filter((q) => q.toLowerCase() !== label.toLowerCase())
+        : [...(draft.quoteOptions ?? []), label],
+    });
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -58,7 +66,9 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
         <input className="input" value={draft.label} onChange={(e) => set({ label: e.target.value })} autoFocus />
       </label>
       <label className="label">
-        Podpowiedź <span className="muted">(opcjonalnie)</span>
+        <span>
+          Podpowiedź <span className="muted">(opcjonalnie)</span>
+        </span>
         <input className="input" value={draft.help ?? ""} onChange={(e) => set({ help: e.target.value })} />
       </label>
 
@@ -73,11 +83,46 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
               onChange={(e) => setOptionsText(e.target.value)}
             />
           </label>
+          {labels.length > 0 && (
+            <div className="label" role="group" aria-label="Opcje, które zmieniają wycenę">
+              <span>
+                Zmieniają wycenę <span className="muted">(widzi tylko agencja)</span>
+              </span>
+              <div className="type-picker">
+                {labels.map((label) => (
+                  <button
+                    type="button"
+                    key={label}
+                    aria-pressed={quoted(label)}
+                    className={`type-option ${quoted(label) ? "is-on" : ""}`}
+                    onClick={() => toggleQuote(label)}
+                  >
+                    <IconReceipt size={15} aria-hidden /> {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <label className="check-row">
             <input type="checkbox" checked={Boolean(draft.allowOther)} onChange={(e) => set({ allowOther: e.target.checked })} />
             Dodaj opcję „Inne…” z polem tekstowym
           </label>
         </>
+      )}
+
+      {draft.type === "confirm" && (
+        <label className="label">
+          <span>
+            Co już wiemy <span className="muted">(klient tylko sprawdza i klika „Zgadza się”)</span>
+          </span>
+          <textarea
+            className="input"
+            rows={3}
+            placeholder="Np. Piekarnia Kowalski, NIP 123-456-78-90, ul. Długa 5, Kraków"
+            value={draft.prefill ?? ""}
+            onChange={(e) => set({ prefill: e.target.value })}
+          />
+        </label>
       )}
 
       {draft.type === "scale" && (
@@ -95,7 +140,7 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
 
       <label className="check-row">
         <input type="checkbox" checked={draft.required} onChange={(e) => set({ required: e.target.checked })} />
-        Ważne pytanie
+        Baza: bez tej odpowiedzi nie startujemy
       </label>
 
       {error && <p className="error">{error}</p>}

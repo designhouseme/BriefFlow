@@ -1,6 +1,7 @@
 import {
   IconArrowRight,
   IconArrowUp,
+  IconCalendarEvent,
   IconCheck,
   IconClick,
   IconClockPause,
@@ -25,7 +26,8 @@ import {
   type Step,
   visibleSteps,
 } from "../shared/flow";
-import { describeAnswer, optionsOf, progress } from "../shared/ops";
+import { baseStatus } from "../shared/checks";
+import { describeAnswer, needsText, optionsOf, progress } from "../shared/ops";
 import type { Answer, AnswerInput, Brief, Field, Option } from "../shared/types";
 import type { BriefStub } from "./connection";
 import { answerIcon, optionIcon, sectionIcon, toneOf } from "./icons";
@@ -226,6 +228,7 @@ function Thread({
   const shown = list.slice(0, upto + 1).filter((q) => q === current || brief.answers[q.field.id]);
   const open = openQuestions(brief).length;
   const untouched = list.filter((q) => !brief.answers[q.field.id]).length;
+  const missingBase = baseStatus(brief).missing.length;
 
   // Ostatnie pytanie ma być widoczne. Przy pierwszym wejściu bez animacji, potem płynnie.
   useLayoutEffect(() => {
@@ -275,6 +278,8 @@ function Thread({
               {open
                 ? `Do uzupełnienia ${open} ${plural(open, "pytanie", "pytania", "pytań")}: możesz to zrobić teraz albo później, tym samym linkiem. Możesz też wysłać to, co jest.`
                 : "Dziękujemy! Sprawdź odpowiedzi i wyślij brief."}
+              {missingBase > 0 &&
+                ` Bez ${missingBase} ${plural(missingBase, "najważniejszej odpowiedzi", "najważniejszych odpowiedzi", "najważniejszych odpowiedzi")} nie ruszymy z projektem, ale o nie dopytamy.`}
               <span className="bubble-help">Każdą odpowiedź możesz jeszcze zmienić: kliknij ją w rozmowie.</span>
             </Bot>
           )}
@@ -420,29 +425,33 @@ function Controls({
   switch (field.type) {
     case "single_choice":
     case "yes_no":
-    case "material": {
-      const options = [...optionsOf(field), ...(field.type !== "material" && field.allowOther ? [OTHER_OPTION] : [])];
-      // Wybór z dopiskiem (Inne…, link) nie przechodzi dalej sam: czeka na tekst.
-      const needsText = (id: string) => id === OTHER || (field.type === "material" && id === "link");
+    case "material":
+    case "confirm":
+    case "area":
+    case "deadline":
+    case "consent": {
+      const options = [...optionsOf(field), ...(field.type === "single_choice" && field.allowOther ? [OTHER_OPTION] : [])];
+      // Wybór z dopiskiem (Inne…, link, miasto, data, poprawka) nie przechodzi dalej sam: czeka na tekst.
       const pick = (id: string) => {
         if (value === id) return onClear();
         const input: AnswerInput = { status: "answered", value: id, other: answer?.other };
-        return needsText(id) ? onSave(input) : commit(input);
+        return needsText(field.type, id) ? onSave(input) : commit(input);
       };
+      const pair = field.type === "yes_no" || field.type === "confirm" || field.type === "consent";
       return (
         <>
-          <div className={`tiles ${field.type === "yes_no" ? "tiles-pair" : ""}`}>
+          {field.type === "confirm" && <blockquote className="prefill">{field.prefill}</blockquote>}
+          <div className={`tiles ${pair ? "tiles-pair" : ""}`}>
             {options.map((o, i) => (
               <Tile key={o.id} field={field} option={o} index={i} on={value === o.id} onClick={() => pick(o.id)} />
             ))}
           </div>
-          {typeof value === "string" && needsText(value) && (
-            <Composer
+          {typeof value === "string" && needsText(field.type, value) && (
+            <ExtraInput
               key={value}
+              field={field}
+              value={value}
               saved={answer?.other ?? ""}
-              label={field.type === "material" ? "Link do plików" : "Co dokładnie?"}
-              placeholder={field.type === "material" ? "Wklej link: Dysk Google, WeTransfer, Dropbox…" : "Napisz krótko, co dokładnie"}
-              autoFocus
               onSend={(text) => commit({ status: "answered", value, other: text })}
             />
           )}
@@ -598,6 +607,57 @@ function Tile({
         {on && <IconCheck size={14} stroke={3} />}
       </span>
     </button>
+  );
+}
+
+/** Dopisek do wybranej odpowiedzi: data, miasto, link, poprawka albo „Inne…”. */
+function ExtraInput({
+  field,
+  value,
+  saved,
+  onSend,
+}: {
+  field: Field;
+  value: string;
+  saved: string;
+  onSend: (text: string) => unknown;
+}) {
+  if (field.type === "deadline") return <DateInput saved={saved} onSend={onSend} />;
+  const copy: Record<string, { label: string; placeholder: string }> = {
+    link: { label: "Link do plików", placeholder: "Wklej link: Dysk Google, WeTransfer, Dropbox…" },
+    fix: { label: "Poprawione dane", placeholder: "Popraw to, co się nie zgadza" },
+    miasto: { label: "Miasto", placeholder: "Jakie miasto?" },
+    okolica: { label: "Miasto i zasięg", placeholder: "Np. Kraków i 30 km wokół" },
+    region: { label: "Region", placeholder: "Np. województwo małopolskie" },
+  };
+  const { label, placeholder } = copy[value] ?? { label: "Co dokładnie?", placeholder: "Napisz krótko, co dokładnie" };
+  // Poprawkę zaczynamy od tego, co agencja wpisała: klient zmienia tylko to, co się nie zgadza.
+  const start = value === "fix" ? saved || field.prefill || "" : saved;
+  return <Composer saved={start} label={label} placeholder={placeholder} autoFocus onSend={onSend} />;
+}
+
+/** Wybór daty z kalendarza, zapis przyciskiem jak w polu tekstowym. */
+function DateInput({ saved, onSend }: { saved: string; onSend: (iso: string) => unknown }) {
+  const [date, setDate] = useState(saved);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <form
+      className="composer composer-date"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (date) onSend(date);
+      }}
+    >
+      <IconCalendarEvent className="composer-icon" size={18} aria-hidden />
+      <input ref={ref} type="date" value={date} min={today} aria-label="Data" onChange={(e) => setDate(e.target.value)} />
+      <button className="send" disabled={!date} aria-label="Zapisz datę">
+        <IconArrowUp size={19} stroke={2.25} />
+      </button>
+    </form>
   );
 }
 

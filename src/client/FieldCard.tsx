@@ -1,6 +1,16 @@
-import { IconCheck, IconClockPause, IconHelpCircle, IconPencil, IconTrash, IconWand } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconClockPause,
+  IconHelpCircle,
+  IconListCheck,
+  IconPencil,
+  IconTrash,
+  IconWand,
+} from "@tabler/icons-react";
+import type { Flag } from "../shared/checks";
 import { useEffect, useRef, useState } from "react";
-import { findField, isFieldVisible, optionsOf } from "../shared/ops";
+import { findField, isFieldVisible, needsText, optionsOf } from "../shared/ops";
 import type { Answer, AnswerInput, Brief, Field, Option, Role, ShowIf } from "../shared/types";
 import type { BriefStub, Run } from "./connection";
 import { FieldEditor } from "./FieldEditor";
@@ -26,9 +36,10 @@ interface Props {
   run: Run;
   editing: boolean;
   setEditing: (fieldId: string | null) => void;
+  flags?: Flag[];
 }
 
-export function FieldCard({ brief, field, role, stub, run, editing, setEditing }: Props) {
+export function FieldCard({ brief, field, role, stub, run, editing, setEditing, flags = [] }: Props) {
   const answer = brief.answers[field.id];
   const save = (input: AnswerInput) => run(() => stub.setAnswer(field.id, input));
   const clear = () => run(() => stub.clearAnswer(field.id));
@@ -48,7 +59,11 @@ export function FieldCard({ brief, field, role, stub, run, editing, setEditing }
       <div className="field-head">
         <div className="field-title">
           <h3 className="field-q">{field.label}</h3>
-          {field.required && <span className="tag">ważne</span>}
+          {field.required && (
+            <span className="tag" title="Bez tej odpowiedzi nie startujemy">
+              <IconListCheck size={14} aria-hidden /> Baza
+            </span>
+          )}
           {role === "agency" && field.origin === "ai" && (
             <span className="tag tag-ai" title={field.reason ?? "Dodane przez AI"}>
               <IconWand size={14} aria-hidden /> AI
@@ -71,6 +86,14 @@ export function FieldCard({ brief, field, role, stub, run, editing, setEditing }
       </div>
       {field.help && <p className="help">{field.help}</p>}
       {role === "agency" && field.showIf && <p className="condition">{conditionText(brief, field.showIf)}</p>}
+      {flags.map((flag) => (
+        <p className="flag" key={flag.title}>
+          <IconAlertTriangle size={17} aria-hidden />
+          <span>
+            <strong>{flag.title}.</strong> {flag.advice}
+          </span>
+        </p>
+      ))}
 
       <AnswerControls field={field} answer={answer} save={save} clear={clear} />
 
@@ -114,25 +137,49 @@ function AnswerControls({
   switch (field.type) {
     case "single_choice":
     case "yes_no":
-    case "material": {
+    case "material":
+    case "confirm":
+    case "area":
+    case "deadline":
+    case "consent": {
       const options = optionsOf(field);
-      const showOther = field.type !== "material" && field.allowOther;
+      const showOther = field.type === "single_choice" && field.allowOther;
       const pick = (id: string) => (value === id ? clear() : save({ status: "answered", value: id, other: answer?.other }));
-      const needsText = (value === OTHER && showOther) || (field.type === "material" && value === "link");
+      const pair = field.type === "yes_no" || field.type === "confirm" || field.type === "consent";
+      const placeholder: Record<string, string> = {
+        link: "Wklej link (Dysk Google, WeTransfer…)",
+        fix: "Poprawione dane",
+        miasto: "Jakie miasto?",
+        okolica: "Miasto i zasięg, np. Kraków i 30 km",
+        region: "Np. województwo małopolskie",
+      };
       return (
         <>
-          <div className={`pills ${field.type === "yes_no" ? "pills-pair" : ""}`}>
+          {field.type === "confirm" && <blockquote className="prefill">{field.prefill}</blockquote>}
+          <div className={`pills ${pair ? "pills-pair" : ""}`}>
             {[...options, ...(showOther ? [{ id: OTHER, label: "Inne…" }] : [])].map((o, i) => (
               <Tile key={o.id} field={field} option={o} index={i} on={value === o.id} onClick={() => pick(o.id)} />
             ))}
           </div>
-          {needsText && (
-            <TextAnswer
-              key={String(value)}
-              saved={answer?.other ?? ""}
-              placeholder={field.type === "material" ? "Wklej link (Dysk Google, WeTransfer…)" : "Napisz, co dokładnie"}
-              onSave={(text) => save({ status: "answered", value: value as string, other: text })}
-            />
+          {typeof value === "string" && needsText(field.type, value) && (
+            <div className="text-answer">
+              {field.type === "deadline" ? (
+                <input
+                  className="input"
+                  type="date"
+                  aria-label="Data"
+                  value={answer?.other ?? ""}
+                  onChange={(e) => e.target.value && save({ status: "answered", value, other: e.target.value })}
+                />
+              ) : (
+                <TextAnswer
+                  key={value}
+                  saved={answer?.other ?? (value === "fix" ? (field.prefill ?? "") : "")}
+                  placeholder={placeholder[value] ?? "Napisz, co dokładnie"}
+                  onSave={(text) => save({ status: "answered", value, other: text })}
+                />
+              )}
+            </div>
           )}
         </>
       );
@@ -228,6 +275,7 @@ function Tile({
         {on && multi ? <IconCheck size={15} stroke={2.5} /> : <Icon size={16} stroke={1.9} />}
       </span>
       {option.label}
+      {option.quote && <span className="pill-quote">wycena</span>}
     </button>
   );
 }
