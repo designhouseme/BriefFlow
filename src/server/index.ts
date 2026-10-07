@@ -4,6 +4,7 @@ import { TEMPLATE_LIST } from "../shared/templates";
 import type { AccessInfo } from "../shared/types";
 import { JURISDICTION } from "./accounts";
 import { getSession, logout, readJson, type Session, startLogin, verifyLogin } from "./auth";
+import { briefSentMail, loginCodeMail, sendMail } from "./emails";
 
 export { BriefAgent } from "./brief-agent";
 export { AccountStore } from "./accounts";
@@ -93,6 +94,36 @@ export default {
     if (pathname === "/api/auth/start" && method === "POST") return startLogin(request, env);
     if (pathname === "/api/auth/verify" && method === "POST") return verifyLogin(request, env);
     if (pathname === "/api/auth/logout" && method === "POST") return logout(request, env);
+
+    // Tylko lokalnie: wysyła przykład każdego maila do Mailpita (podgląd szablonów). W buildzie produkcyjnym znika.
+    if (import.meta.env.DEV && pathname === "/api/dev/emails" && method === "POST") {
+      const session = await getSession(request, env);
+      if (!session) return unauthorized();
+      const origin = url.origin;
+      const mails = [
+        loginCodeMail({ to: session.email, code: "482913", origin }),
+        briefSentMail({
+          to: session.email,
+          origin,
+          briefId: "PrzykladBrief",
+          briefName: "Piekarnia Kowalski, Strona WWW",
+          settled: 24,
+          total: 30,
+          open: 6,
+        }),
+        briefSentMail({
+          to: session.email,
+          origin,
+          briefId: "PrzykladBrief",
+          briefName: "Studio Fryzur Ola, Strona WWW",
+          settled: 30,
+          total: 30,
+          open: 0,
+        }),
+      ];
+      for (const mail of mails) await sendMail(env, mail);
+      return json({ sent: mails.length, to: session.email });
+    }
 
     if (pathname === "/api/me" && method === "GET") {
       const session = await getSession(request, env);

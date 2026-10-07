@@ -1,4 +1,5 @@
 import { accountKey, accountStub, SESSION_TTL } from "./accounts";
+import { loginCodeMail, sendMail } from "./emails";
 
 // Logowanie agencji kodem z maila. Klient briefu nie loguje się nigdy: wchodzi swoim linkiem.
 
@@ -74,27 +75,6 @@ async function devSession(env: Env): Promise<Session> {
   return { key, email, account };
 }
 
-function codeEmail(code: string) {
-  const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
-  const text = `Twój kod do Briefingu Design House: ${spaced}\n\nWpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut.\nJeśli to nie Ty, zignoruj tę wiadomość.\n\nDesign House, designhouse.me`;
-  // Mail w barwach Design House: płótno, biała karta, znak z limonką na czarnym kafelku.
-  const html = `<!doctype html><html lang="pl"><body style="margin:0;background:#fafaf9;font-family:Geist,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#111113">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border:1px solid #e8e8e5;border-radius:16px;padding:32px">
-<tr><td><table role="presentation" cellpadding="0" cellspacing="0"><tr>
-<td style="width:28px;height:28px;background:#0f1113;border-radius:8px;text-align:center;vertical-align:middle"><span style="display:inline-block;width:12px;height:12px;background:#e6ff32;border-radius:3px"></span></td>
-<td style="padding-left:10px;font-size:15px;font-weight:700">Design House</td>
-<td style="padding-left:10px;font-size:15px;color:#62626b">Briefing</td>
-</tr></table></td></tr>
-<tr><td style="padding-top:28px;font-size:15px;line-height:1.5;color:#3f3f46">Twój kod logowania:</td></tr>
-<tr><td style="padding:12px 0 20px;font-size:34px;font-weight:700;letter-spacing:6px">${spaced}</td></tr>
-<tr><td style="font-size:14px;line-height:1.5;color:#3f3f46">Wpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut. Jeśli to nie Ty, zignoruj tę wiadomość.</td></tr>
-</table>
-<p style="font-size:12px;color:#62626b;margin-top:16px">Design House, designhouse.me</p>
-</td></tr></table></body></html>`;
-  return { text, html, subject: `${spaced} to Twój kod do Briefingu Design House` };
-}
-
 /** POST /api/auth/start { email } → wysyła kod. W trybie dev kod wraca też w odpowiedzi (mail idzie tylko do logu). */
 export async function startLogin(request: Request, env: Env): Promise<Response> {
   const body = await readJson<{ email?: string }>(request);
@@ -109,15 +89,8 @@ export async function startLogin(request: Request, env: Env): Promise<Response> 
     return json({ error: `Kod już wysłany. Następny możesz wysłać za ${result.retryAfter} s.`, retryAfter: result.retryAfter }, 429);
   }
 
-  const message = codeEmail(result.code);
   try {
-    await env.EMAIL.send({
-      to: email,
-      from: { email: env.EMAIL_FROM, name: "Design House" },
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-    });
+    await sendMail(env, loginCodeMail({ to: email, code: result.code, origin: new URL(request.url).origin }));
   } catch (error) {
     console.error("Nie udało się wysłać kodu", error);
     if (!import.meta.env.DEV) return json({ error: "Nie udało się wysłać maila. Spróbuj za chwilę." }, 502);

@@ -14,6 +14,14 @@ pnpm dev
 
 Lokalnie nie trzeba się logować: aplikacja od razu wchodzi na konto deweloperskie (`dev@designhouse.me`, zmiana przez `DEV_EMAIL` w `.dev.vars`). Ta ścieżka nie trafia do buildu produkcyjnego. Bez klucza Gemini działa wszystko poza poleceniami AI.
 
+### Podgląd maili (Mailpit)
+
+```bash
+docker run -d --name dh-mailpit -p 127.0.0.1:8025:8025 -p 127.0.0.1:1025:1025 axllent/mailpit
+```
+
+Z `MAILPIT_URL=http://127.0.0.1:8025` w `.dev.vars` maile z dev trafiają do Mailpita: http://127.0.0.1:8025. Przykład każdego szablonu wyślesz poleceniem `curl -X POST http://localhost:5173/api/dev/emails` (trasa istnieje tylko w dev). Szablony są w `src/server/emails.ts`.
+
 ## Wdrożenie
 
 ```bash
@@ -62,3 +70,4 @@ public/brand/              znak (orb) i grafika do podglądu linku
 - Brak przypomnień mailowych i wykrywania luk przez AI.
 - Brief widzi tylko osoba, która go utworzyła. Wspólnych briefów zespołu jeszcze nie ma.
 - Limit kodów jest liczony na adres, nie na IP.
+
