@@ -1,40 +1,57 @@
 import {
+  IconArrowBackUp,
   IconArrowRight,
   IconArrowUp,
-  IconBuildingStore,
-  IconCalendarMonth,
   IconCheck,
   IconClockPause,
   IconCopy,
   IconCreditCard,
+  IconFileText,
+  IconGitBranch,
   IconHelpCircle,
-  IconHourglass,
-  IconLanguage,
-  IconLifebuoy,
   IconLink,
   IconListCheck,
-  IconMail,
   IconPlus,
+  IconReceipt,
+  IconRefresh,
   IconTruckDelivery,
   IconUsers,
   IconWand,
-  IconWorld,
-  IconX,
+  type Icon,
 } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Me } from "../shared/account";
+import { questions } from "../shared/flow";
+import { findField, optionsOf } from "../shared/ops";
+import { briefFromTemplate } from "../shared/templates";
+import type { Field, Option } from "../shared/types";
 import { getMe, primeMe } from "./api";
 import { AuthForm } from "./AuthForm";
 import { BrandLockup, Wordmark } from "./Brand";
+import { optionIcon, toneOf } from "./icons";
 import { Orb } from "./Orb";
 import { navigate } from "./router";
+import { ShaderOrb } from "./ShaderOrb";
 
-// Strona startowa: od razu prowadzi do aplikacji. Formularz logowania stoi w pierwszym ekranie,
-// a po kodzie z maila widok przechodzi płynnie w aplikację (View Transitions).
+// Strona startowa pokazuje sam produkt: kula z powitania aplikacji, wokół niej krążą prawdziwe odpowiedzi
+// z szablonu „Strona WWW”, niżej demo do przeklikania. Logowanie stoi w pierwszym ekranie i po kodzie
+// z maila przechodzi płynnie w aplikację (View Transitions).
+
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Pytania i odpowiedzi z prawdziwego szablonu, żeby strona nie pokazywała wymyślonych przykładów. */
+const WWW = briefFromTemplate("www", { id: "demo", title: "", clientName: "" });
+const field = (id: string): Field => findField(WWW, id).field;
+
+function answer(fieldId: string, label: string): { field: Field; option: Option } | null {
+  const f = field(fieldId);
+  const option = optionsOf(f).find((o) => o.label === label);
+  return option ? { field: f, option } : null;
+}
 
 export function Landing() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
-  const formSlot = useRef<HTMLDivElement>(null);
+  const heroForm = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getMe().then(setMe, () => setMe(null));
@@ -47,9 +64,26 @@ export function Landing() {
   };
   const focusLogin = () => {
     if (me) return openApp();
-    formSlot.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    formSlot.current?.querySelector("input")?.focus({ preventScroll: true });
+    heroForm.current?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "center" });
+    heroForm.current?.querySelector("input")?.focus({ preventScroll: true });
   };
+
+  const signIn = () =>
+    me === undefined ? (
+      <div className="auth-placeholder" aria-hidden />
+    ) : me ? (
+      <div className="signed-in">
+        <button className="btn-send btn-send-wide" onClick={openApp}>
+          <span className="btn-send-label">Otwórz aplikację</span>
+          <span className="btn-send-icon" aria-hidden>
+            <IconArrowRight size={18} stroke={2.4} />
+          </span>
+        </button>
+        <p className="auth-note">Zalogowano jako {me.email}</p>
+      </div>
+    ) : (
+      <AuthForm onDone={openApp} />
+    );
 
   return (
     <div className="site">
@@ -58,6 +92,7 @@ export function Landing() {
           <BrandLockup />
         </a>
         <nav className="site-links" aria-label="Sekcje">
+          <a href="#demo">Wypróbuj</a>
           <a href="#jak">Jak to działa</a>
           <a href="#agencja">Dla agencji</a>
           <a href="#pytania">Pytania</a>
@@ -74,26 +109,16 @@ export function Landing() {
       </header>
 
       <main>
-        <section className="hero">
+        <section className="hero" aria-labelledby="hero-title">
+          <HeroStage />
           <div className="hero-copy">
-            <h1>Brief, który klient przechodzi jak rozmowę</h1>
+            <h1 id="hero-title">Brief, który klient przechodzi jak rozmowę</h1>
             <p className="hero-lead">
-              Zamiast formularza krótka rozmowa, w której klient głównie klika. Gdy czegoś nie wie, wybiera „Nie wiem” albo
-              wraca później tym samym linkiem. Ty widzisz odpowiedzi na żywo.
+              Klient klika odpowiedzi, po jednym pytaniu. Może wybrać „Nie wiem” albo wrócić później tym samym linkiem,
+              a Ty widzisz brief na żywo.
             </p>
-            <div className="hero-form vt-panel" ref={formSlot}>
-              {me === undefined ? (
-                <div className="auth-placeholder" aria-hidden />
-              ) : me ? (
-                <div className="signed-in">
-                  <button className="btn btn-primary btn-big" onClick={openApp}>
-                    Otwórz aplikację <IconArrowRight size={18} aria-hidden />
-                  </button>
-                  <p className="auth-note">Zalogowano jako {me.email}</p>
-                </div>
-              ) : (
-                <AuthForm onDone={openApp} />
-              )}
+            <div className="hero-form vt-panel" ref={heroForm}>
+              {signIn()}
             </div>
             <ul className="hero-facts">
               <li>
@@ -107,37 +132,43 @@ export function Landing() {
               </li>
             </ul>
           </div>
-          <HeroDemo />
+        </section>
+
+        <section className="site-section try" id="demo" aria-labelledby="demo-title">
+          <div className="section-intro">
+            <h2 className="site-h2" id="demo-title">
+              Kliknij jak klient
+            </h2>
+            <p>Cztery pytania z naszego szablonu „Strona WWW”. Z każdym kliknięciem rośnie brief, który zobaczy agencja.</p>
+          </div>
+          <TryDemo />
         </section>
 
         <section className="site-section" id="jak" aria-labelledby="jak-title">
-          <h2 className="site-h2" id="jak-title">
-            Jak to działa
-          </h2>
-          <ol className="steps">
-            <li className="step">
-              <div className="step-text">
-                <span className="step-num">1</span>
+          <div className="section-intro">
+            <h2 className="site-h2" id="jak-title">
+              Jak to działa
+            </h2>
+          </div>
+          <ol className="flow">
+            <li className="flow-step">
+              <span className="flow-num">1</span>
+              <div className="flow-text">
                 <h3>Tworzysz brief</h3>
-                <p>Wpisujesz klienta i wybierasz szablon. Pytania zmienisz ręcznie albo poleceniem dla AI.</p>
+                <p>Wpisujesz klienta. Pytania zmienisz ręcznie albo poleceniem dla AI.</p>
               </div>
-              <div className="mini mini-composer" aria-hidden>
+              <div className="mini mini-bar" aria-hidden>
                 <span className="mini-input">Piekarnia Kowalski</span>
-                <span className="mini-row">
-                  <span className="mini-chip">
-                    <IconWorld size={15} /> Strona WWW
-                  </span>
-                  <span className="mini-send">
-                    <IconArrowUp size={16} stroke={2.4} />
-                  </span>
+                <span className="mini-send">
+                  <IconArrowUp size={16} stroke={2.4} />
                 </span>
               </div>
             </li>
-            <li className="step">
-              <div className="step-text">
-                <span className="step-num">2</span>
+            <li className="flow-step">
+              <span className="flow-num">2</span>
+              <div className="flow-text">
                 <h3>Wysyłasz link</h3>
-                <p>Klient dostaje jeden link. Bez konta i bez hasła, w przeglądarce na telefonie albo laptopie.</p>
+                <p>Klient dostaje jeden link. Bez konta i bez hasła, na telefonie albo laptopie.</p>
               </div>
               <div className="mini mini-link" aria-hidden>
                 <span className="mini-link-icon">
@@ -149,11 +180,11 @@ export function Landing() {
                 </span>
               </div>
             </li>
-            <li className="step">
-              <div className="step-text">
-                <span className="step-num">3</span>
-                <h3>Widzisz odpowiedzi na żywo</h3>
-                <p>Brief uzupełnia się przy każdym kliknięciu. Możecie też wypełniać go razem na spotkaniu.</p>
+            <li className="flow-step">
+              <span className="flow-num">3</span>
+              <div className="flow-text">
+                <h3>Czytasz brief na żywo</h3>
+                <p>Odpowiedzi wpadają przy każdym kliknięciu. Możecie też wypełniać brief razem na spotkaniu.</p>
               </div>
               <div className="mini mini-progress" aria-hidden>
                 <span className="mini-progress-head">
@@ -163,163 +194,117 @@ export function Landing() {
                 <span className="meter meter-wide">
                   <span style={{ width: "40%" }} />
                 </span>
-                <span className="mini-answer">
-                  <span>Branża</span>
-                  <strong>Gastronomia</strong>
-                </span>
               </div>
             </li>
           </ol>
         </section>
 
-        <section className="site-section split" aria-labelledby="klient-title">
-          <div>
-            <h2 className="site-h2" id="klient-title">
-              Klient nie wypełnia formularza
-            </h2>
-            <ul className="principles">
-              <li>
-                <strong>Jedno pytanie naraz.</strong> Klient nie widzi ściany pytań, tylko to, na które właśnie odpowiada.
-              </li>
-              <li>
-                <strong>Klika zamiast pisać.</strong> Pole tekstowe pojawia się tylko tam, gdzie kliknięcie nie wystarczy.
-              </li>
-              <li>
-                <strong>Niewiedza to też odpowiedź.</strong> „Nie wiem” i „Pomiń na razie” nigdy nie blokują dalszej drogi.
-              </li>
-              <li>
-                <strong>Może wrócić później.</strong> Wszystko zapisuje się samo, a link prowadzi tam, gdzie klient przerwał.
-              </li>
-            </ul>
-          </div>
-          <div className="mini mini-question" aria-hidden>
-            <div className="bot">
-              <Orb size={30} className="avatar-orb" />
-              <div className="bubble bubble-bot">Logo w wersji wektorowej</div>
+        <section className="band" id="agencja" aria-labelledby="agencja-title">
+          <div className="band-inner">
+            <div className="section-intro">
+              <h2 className="site-h2" id="agencja-title">
+                Ty dostajesz brief, z którym da się zacząć projekt
+              </h2>
+              <p>Wszystko w jednym widoku: pytania, odpowiedzi klienta, kontrole przed startem i historia zmian.</p>
             </div>
-            <div className="tiles">
-              <span className="tile tone-1">
-                <span className="tile-icon">
-                  <IconMail size={22} stroke={1.75} />
-                </span>
-                <span className="tile-text">Mam, wyślę mailem</span>
-              </span>
-              <span className="tile tone-2">
-                <span className="tile-icon">
-                  <IconLink size={22} stroke={1.75} />
-                </span>
-                <span className="tile-text">Mam, podam link</span>
-              </span>
-              <span className="tile tone-3">
-                <span className="tile-icon">
-                  <IconLifebuoy size={22} stroke={1.75} />
-                </span>
-                <span className="tile-text">Nie mam, potrzebuję pomocy</span>
-              </span>
-            </div>
-            <div className="quick-row">
-              <span className="quick">
-                <IconHelpCircle size={17} /> Nie wiem
-              </span>
-              <span className="quick is-on">
-                <IconClockPause size={17} /> Pomiń na razie
-              </span>
-            </div>
-          </div>
-        </section>
-
-        <section className="site-section" id="agencja" aria-labelledby="agencja-title">
-          <h2 className="site-h2" id="agencja-title">
-            Ty dostajesz brief, z którym da się zacząć projekt
-          </h2>
-          <div className="bento">
-            <article className="bento-card bento-wide">
-              <div className="bento-text">
+            <div className="band-grid">
+              <article className="band-card band-ai">
                 <h3>Polecenia dla AI</h3>
-                <p>Napisz, co dodać albo zmienić, a AI przerobi pytania. Każde polecenie to jeden krok do cofnięcia.</p>
-              </div>
-              <div className="mini mini-ai" aria-hidden>
-                <span className="mini-input">
-                  <IconWand size={17} /> Dodaj pytania o wysyłkę za granicę
-                </span>
-                <span className="mini-result">
-                  <span>
-                    <IconPlus size={14} /> Pole „Do jakich krajów wysyłacie?”
-                  </span>
-                  <span>
-                    <IconPlus size={14} /> Pole „Kto płaci za zwroty?”
-                  </span>
-                </span>
-              </div>
-            </article>
-            <article className="bento-card">
-              <div className="bento-text">
+                <p>Napisz, co dodać albo zmienić, a AI przerobi pytania. Każde polecenie cofniesz jednym kliknięciem.</p>
+                <div className="band-ui" aria-hidden>
+                  <div className="bar bar-static">
+                    <span className="bar-lead tone-5">
+                      <IconWand size={19} stroke={1.9} />
+                    </span>
+                    <span className="bar-text">Dodaj pytania o wysyłkę za granicę</span>
+                    <span className="bar-icon-btn">
+                      <IconArrowBackUp size={19} />
+                    </span>
+                    <span className="btn-send">
+                      <span className="btn-send-label">Wykonaj</span>
+                      <span className="btn-send-icon">
+                        <IconArrowUp size={18} stroke={2.4} />
+                      </span>
+                    </span>
+                  </div>
+                  <ul className="band-result">
+                    <li>
+                      <IconPlus size={15} /> Pole „Do jakich krajów wysyłacie?”
+                    </li>
+                    <li>
+                      <IconPlus size={15} /> Pole „Kto płaci za zwroty?”
+                    </li>
+                  </ul>
+                </div>
+              </article>
+
+              <article className="band-card band-checks">
                 <h3>Przed startem</h3>
-                <p>Widzisz, czego brakuje w Bazie, na co reagować od razu i co idzie do osobnej wyceny.</p>
-              </div>
-              <ul className="mini mini-checks" aria-hidden>
-                <li>
-                  <span className="mini-check-icon tone-1">
-                    <IconListCheck size={15} />
-                  </span>
-                  Baza <strong>9/12</strong>
-                </li>
-                <li>
-                  <span className="mini-check-icon tone-4">
-                    <IconUsers size={15} />
-                  </span>
-                  Projekt zatwierdza kilka osób
-                </li>
-                <li>
-                  <span className="mini-check-icon tone-2">
-                    <IconLanguage size={15} />
-                  </span>
-                  Wersja w innym języku
-                </li>
-              </ul>
-            </article>
-            <article className="bento-card">
-              <div className="bento-text">
+                <p>Czego brakuje w Bazie, na co reagować od razu i co idzie do osobnej wyceny.</p>
+                <ul className="band-list" aria-hidden>
+                  <li>
+                    <span className="band-icon tone-1">
+                      <IconListCheck size={16} />
+                    </span>
+                    Baza <strong>9/12</strong>
+                  </li>
+                  <li>
+                    <span className="band-icon tone-4">
+                      <IconUsers size={16} />
+                    </span>
+                    Projekt zatwierdza kilka osób
+                  </li>
+                  <li>
+                    <span className="band-icon tone-2">
+                      <IconReceipt size={16} />
+                    </span>
+                    Rezerwacje online <span className="pill-quote">wycena</span>
+                  </li>
+                </ul>
+              </article>
+
+              <article className="band-card band-log">
                 <h3>Historia zmian</h3>
-                <p>Kto, co i kiedy odpowiedział albo zmienił. Zmiany pytań da się cofnąć, odpowiedzi zostają.</p>
-              </div>
-              <ol className="mini mini-log" aria-hidden>
-                <li>
-                  <span>Klient</span> Termin: do miesiąca
-                </li>
-                <li>
-                  <span>AI</span> Dodano pole „Metody dostawy”
-                </li>
-                <li>
-                  <span>Agencja</span> Cofnięto zmianę pytań
-                </li>
-              </ol>
-            </article>
-            <article className="bento-card bento-wide">
-              <div className="bento-text">
+                <p>Kto, co i kiedy zmienił. Zmiany pytań da się cofnąć, odpowiedzi zostają.</p>
+                <ol className="band-log-list" aria-hidden>
+                  <li>
+                    <span className="log-who is-client">Klient</span> Termin: do miesiąca
+                  </li>
+                  <li>
+                    <span className="log-who is-ai">AI</span> Dodano pole „Metody dostawy”
+                  </li>
+                  <li>
+                    <span className="log-who">Agencja</span> Cofnięto zmianę pytań
+                  </li>
+                </ol>
+              </article>
+
+              <article className="band-card band-if">
                 <h3>Pytania, które pojawiają się same</h3>
-                <p>Pytania o płatności i dostawę zobaczy tylko klient, który zaznaczy sklep internetowy.</p>
-              </div>
-              <div className="mini mini-condition" aria-hidden>
-                <span className="mini-chip is-on">
-                  <IconCheck size={15} stroke={2.4} /> Sklep: tak
-                </span>
-                <IconArrowRight size={18} className="mini-arrow" />
-                <span className="mini-chip">
-                  <IconCreditCard size={15} /> Metody płatności
-                </span>
-                <span className="mini-chip">
-                  <IconTruckDelivery size={15} /> Metody dostawy
-                </span>
-              </div>
-            </article>
+                <p>Płatności i dostawę zobaczy tylko klient, który zaznaczy sklep internetowy.</p>
+                <div className="band-flow" aria-hidden>
+                  <span className="chip-dark is-on">
+                    <IconCheck size={15} stroke={2.4} /> Sklep: tak
+                  </span>
+                  <IconGitBranch size={18} className="band-arrow" />
+                  <span className="chip-dark">
+                    <IconCreditCard size={15} /> Metody płatności
+                  </span>
+                  <span className="chip-dark">
+                    <IconTruckDelivery size={15} /> Metody dostawy
+                  </span>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
 
         <section className="site-section faq" id="pytania" aria-labelledby="pytania-title">
-          <h2 className="site-h2" id="pytania-title">
-            Pytania
-          </h2>
+          <div className="section-intro">
+            <h2 className="site-h2" id="pytania-title">
+              Pytania
+            </h2>
+          </div>
           <div className="faq-list">
             {FAQ.map(([q, a]) => (
               <details key={q}>
@@ -333,15 +318,13 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="cta" aria-labelledby="cta-title">
-          <Orb size={64} />
-          <div className="cta-text">
-            <h2 id="cta-title">Zacznij od pierwszego briefu</h2>
-            <p>Zaloguj się adresem firmowym i utwórz brief z szablonu „Strona WWW”.</p>
+        <section className="finale" aria-labelledby="finale-title">
+          <div className="finale-orb" aria-hidden>
+            <ShaderOrb size={220} />
           </div>
-          <button className="btn btn-invert btn-big" onClick={focusLogin}>
-            {me ? "Otwórz aplikację" : "Zaloguj się"} <IconArrowRight size={18} aria-hidden />
-          </button>
+          <h2 id="finale-title">Zacznij od pierwszego briefu</h2>
+          <p>Zaloguj się adresem firmowym i utwórz brief z szablonu „Strona WWW”.</p>
+          <div className="finale-form">{signIn()}</div>
         </section>
       </main>
 
@@ -369,150 +352,271 @@ const FAQ: [string, string][] = [
   ["Gdzie są przechowywane dane?", "Na serwerach Cloudflare, w jurysdykcji Unii Europejskiej."],
 ];
 
-// --- Podgląd w pierwszym ekranie: klient odpowiada na trzy pytania z szablonu „Strona WWW” ---
+// --- Pierwszy ekran: kula i odpowiedzi krążące wokół niej ---
 
-/** Kolejne kroki (ms od startu): wybór, odpowiedź, następne pytanie… Potem pętla. */
-const TIMELINE = [1400, 2100, 2900, 4100, 4800, 5600, 6900, 7600];
-const LOOP = 10500;
-const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+type Chip = { label: string; Icon: Icon; tone: string };
 
-function HeroDemo() {
-  // Bez animacji od razu stan końcowy.
-  const [step, setStep] = useState(() => (reducedMotion() ? TIMELINE.length : 0));
+const ORBIT: Chip[] = [
+  ...(
+    [
+      ["f_logo", "Mam, wyślę mailem"],
+      ["f_ma_strone", "Tak"],
+      ["f_funkcje", "Rezerwacje online"],
+      ["f_forma", "Per Ty"],
+      ["f_budzet", "10–20 tys. zł"],
+      ["f_branza", "Gastronomia"],
+      ["f_termin", "Do miesiąca"],
+      ["f_obszar", "Jedno miasto"],
+    ] as const
+  )
+    .map(([id, label]) => answer(id, label))
+    .filter((a): a is NonNullable<typeof a> => a !== null)
+    .map(({ field: f, option }, i) => ({ label: option.label, Icon: optionIcon(f, option), tone: toneOf(i) })),
+];
+// „Nie wiem” i „Pomiń na razie” to też odpowiedzi: wstawione między pozostałe, nie obok siebie.
+ORBIT.splice(2, 0, { label: "Nie wiem", Icon: IconHelpCircle, tone: "" });
+ORBIT.splice(7, 0, { label: "Pomiń na razie", Icon: IconClockPause, tone: "" });
 
-  useEffect(() => {
-    if (reducedMotion()) return;
-    let timers: ReturnType<typeof setTimeout>[] = [];
-    const run = () => {
-      setStep(0);
-      timers = TIMELINE.map((at, i) => setTimeout(() => setStep(i + 1), at));
-      timers.push(setTimeout(run, LOOP));
+function HeroStage() {
+  const orbit = useRef<HTMLDivElement>(null);
+
+  // Odpowiedzi jadą po pochylonej elipsie. Te z tyłu (górna połowa) są mniejsze, bledsze i chowają się za kulą.
+  useLayoutEffect(() => {
+    const box = orbit.current;
+    if (!box) return;
+    const tilt = -0.16;
+    let frame = 0;
+    let visible = true;
+
+    const place = (seconds: number) => {
+      const chips = Array.from(box.children as HTMLCollectionOf<HTMLElement>).filter((c) => c.offsetParent !== null);
+      const a = box.clientWidth * 0.47;
+      const b = box.clientHeight * 0.4;
+      chips.forEach((chip, i) => {
+        const angle = (i / chips.length) * Math.PI * 2 + seconds * 0.07;
+        const x0 = Math.cos(angle) * a;
+        const y0 = Math.sin(angle) * b;
+        const depth = (Math.sin(angle) + 1) / 2;
+        const scale = 0.8 + depth * 0.2;
+        // Etykieta zawsze cała na ekranie: na wąskim końce elipsy się spłaszczają.
+        const room = box.clientWidth / 2 - (chip.offsetWidth * scale) / 2 - 6;
+        const x = Math.max(-room, Math.min(room, x0 * Math.cos(tilt) - y0 * Math.sin(tilt)));
+        const y = x0 * Math.sin(tilt) + y0 * Math.cos(tilt);
+        chip.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
+        chip.style.opacity = (0.45 + depth * 0.55).toFixed(2);
+        chip.style.zIndex = depth > 0.5 ? "3" : "1";
+      });
     };
-    run();
-    return () => timers.forEach(clearTimeout);
+
+    if (reducedMotion()) {
+      place(0);
+      const onResize = () => place(0);
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+    });
+    observer.observe(box);
+    const start = performance.now();
+    const loop = (now: number) => {
+      if (visible && !document.hidden) place((now - start) / 1000);
+      frame = requestAnimationFrame(loop);
+    };
+    place(0);
+    frame = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, []);
 
-  const answered = (step >= 2 ? 1 : 0) + (step >= 5 ? 1 : 0);
-  const pct = [0, 3, 7][answered];
-
   return (
-    <div
-      className="demo"
-      role="img"
-      aria-label="Podgląd: klient odpowiada na pytania briefu, klikając kafle, a pytanie, na które nie zna odpowiedzi, pomija na później."
-    >
-      <img className="demo-glow" src="/brand/orb-soft-900.webp" alt="" />
-      <div className="demo-frame" aria-hidden>
-        <div className="demo-head">
-          <Orb size={26} />
-          <span className="demo-title">Piekarnia Kowalski</span>
-          <span className="demo-pct">{pct}%</span>
-        </div>
-        <div className="demo-thread">
-          <div className="bot">
-            <Orb size={26} className="avatar-orb" />
-            <div className="bubble bubble-bot">Zaczynamy! Klikaj odpowiedzi, a jeśli czegoś nie wiesz, wybierz „Nie wiem”.</div>
-          </div>
-          <p className="thread-step tone-1">
-            <span className="thread-step-icon">
-              <IconBuildingStore size={15} stroke={2} />
+    <div className="hero-stage" aria-hidden>
+      <svg className="hero-orbit-line" viewBox="-100 -100 200 200" preserveAspectRatio="none">
+        <ellipse cx="0" cy="0" rx="94" ry="80" transform="rotate(-9)" />
+      </svg>
+      <div className="hero-orb">
+        <ShaderOrb size={460} maxDpr={1.5} />
+      </div>
+      <div className="orbit" ref={orbit}>
+        {ORBIT.map(({ label, Icon, tone }) => (
+          <span key={label} className={`orbit-chip ${tone}`}>
+            <span className="pill-icon">
+              <Icon size={16} stroke={1.9} />
             </span>
-            Krok 1 z 8, O firmie
-          </p>
-          <DemoTurn
-            question="Czy macie już stronę internetową?"
-            options={[
-              ["Tak", IconCheck],
-              ["Nie", IconX],
-            ]}
-            picked={step >= 1 ? 0 : -1}
-            replied={step >= 2}
-            pair
-          />
-          {step >= 3 && (
-            <DemoTurn
-              question="W jakiej sytuacji klienci was szukają?"
-              options={[
-                ["Pilna potrzeba, np. awaria", IconHourglass],
-                ["Planowany zakup lub remont", IconCalendarMonth],
-              ]}
-              picked={step >= 4 ? 1 : -1}
-              replied={step >= 5}
-            />
-          )}
-          {step >= 6 && (
-            <DemoTurn
-              question="Logo w wersji wektorowej"
-              options={[
-                ["Mam, wyślę mailem", IconMail],
-                ["Mam, podam link", IconLink],
-              ]}
-              picked={-1}
-              skipped={step >= 7}
-              replied={step >= 8}
-            />
-          )}
-        </div>
+            {label}
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
-function DemoTurn({
-  question,
-  options,
-  picked,
-  replied,
-  skipped,
-  pair,
-}: {
-  question: string;
-  options: [string, typeof IconCheck][];
-  picked: number;
-  replied: boolean;
-  skipped?: boolean;
-  pair?: boolean;
-}) {
+// --- Demo do przeklikania: cztery pytania z szablonu i „Twój brief”, który rośnie obok ---
+
+type DemoAnswer = { status: "answered" | "unknown" | "skipped"; value?: string[] };
+const DEMO_FIELDS = ["f_ma_strone", "f_sytuacja", "f_funkcje", "f_logo"].map(field);
+const TEMPLATE_SIZE = questions(WWW).length;
+
+function demoText(f: Field, a: DemoAnswer | undefined) {
+  if (!a) return "";
+  if (a.status === "unknown") return "Nie wiem";
+  if (a.status === "skipped") return "Pominięte, uzupełnię później";
+  const labels = optionsOf(f)
+    .filter((o) => a.value?.includes(o.id))
+    .map((o) => o.label);
+  return labels.join(", ");
+}
+
+function TryDemo() {
+  const [answers, setAnswers] = useState<Record<string, DemoAnswer>>({});
+  const [step, setStep] = useState(0);
+  const [multi, setMulti] = useState<string[]>([]);
+  const thread = useRef<HTMLDivElement>(null);
+  const current = DEMO_FIELDS[step];
+  const done = step >= DEMO_FIELDS.length;
+  const settled = Object.values(answers).filter((a) => a.status !== "skipped").length;
+
+  useEffect(() => {
+    const el = thread.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion() ? "auto" : "smooth" });
+  }, [step]);
+
+  const commit = (a: DemoAnswer) => {
+    setAnswers((prev) => ({ ...prev, [current.id]: a }));
+    setMulti([]);
+    setStep((s) => s + 1);
+  };
+  const reset = () => {
+    setAnswers({});
+    setMulti([]);
+    setStep(0);
+  };
+
   return (
-    <div className="demo-turn">
-      <div className="bot is-fresh">
-        <Orb size={26} className="avatar-orb" />
-        <div className="bubble bubble-bot">{question}</div>
-      </div>
-      {replied ? (
-        <span className={`bubble bubble-me is-fresh ${skipped ? "is-tentative" : ""}`}>
-          {skipped ? (
-            <>
-              <IconClockPause size={17} /> Pominięte, uzupełnię później
-            </>
-          ) : (
-            options[picked]?.[0]
-          )}
-        </span>
-      ) : (
-        <div className="demo-answers">
-          <div className={`tiles ${pair ? "tiles-pair" : ""}`}>
-            {options.map(([label, Icon], i) => (
-              <span key={label} className={`tile ${i ? "tone-2" : "tone-1"} ${picked === i ? "is-on" : ""}`}>
-                <span className="tile-icon">
-                  <Icon size={20} stroke={1.75} />
-                </span>
-                <span className="tile-text">{label}</span>
-              </span>
-            ))}
+    <div className="try-frame">
+      <div className="try-chat">
+        <div className="try-thread" ref={thread} aria-live="polite">
+          <div className="bot">
+            <Orb size={28} className="avatar-orb" />
+            <div className="bubble bubble-bot try-hello">Zaczynamy! Klikaj odpowiedzi, a jeśli czegoś nie wiesz, wybierz „Nie wiem”.</div>
           </div>
-          {!pair && (
-            <div className="quick-row">
-              <span className="quick">
-                <IconHelpCircle size={16} /> Nie wiem
-              </span>
-              <span className={`quick ${skipped ? "is-on" : ""}`}>
-                <IconClockPause size={16} /> Pomiń na razie
-              </span>
+          {DEMO_FIELDS.slice(0, step + 1).map((f, i) => {
+            const a = answers[f.id];
+            const isCurrent = i === step && !done;
+            const options = optionsOf(f);
+            return (
+              <div className="turn" key={f.id}>
+                <div className="bot">
+                  <Orb size={28} className="avatar-orb" />
+                  <div className="bubble bubble-bot">
+                    {f.label}
+                    {f.help && <span className="bubble-help">{f.help}</span>}
+                  </div>
+                </div>
+                {isCurrent ? (
+                  <div className="try-answers">
+                    {f.type === "multi_choice" && (
+                      <p className="answer-hint">
+                        <IconCheck size={15} stroke={2.5} aria-hidden /> Możesz zaznaczyć kilka
+                      </p>
+                    )}
+                    <div className={`tiles ${f.type === "yes_no" ? "tiles-pair" : ""}`}>
+                      {options.map((o, n) => {
+                        const Icon = optionIcon(f, o);
+                        const on = multi.includes(o.id);
+                        return (
+                          <button
+                            key={o.id}
+                            className={`tile ${toneOf(n)} ${on ? "is-on" : ""}`}
+                            aria-pressed={f.type === "multi_choice" ? on : undefined}
+                            onClick={() =>
+                              f.type === "multi_choice"
+                                ? setMulti((m) => (m.includes(o.id) ? m.filter((v) => v !== o.id) : [...m, o.id]))
+                                : commit({ status: "answered", value: [o.id] })
+                            }
+                          >
+                            <span className="tile-icon" aria-hidden>
+                              <Icon size={22} stroke={1.75} />
+                            </span>
+                            <span className="tile-text">{o.label}</span>
+                            {f.type === "multi_choice" && (
+                              <span className="tile-check is-box" aria-hidden>
+                                {on && <IconCheck size={14} stroke={3} />}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="quick-row">
+                      <button className="quick" onClick={() => commit({ status: "unknown" })}>
+                        <IconHelpCircle size={17} aria-hidden /> Nie wiem
+                      </button>
+                      <button className="quick" onClick={() => commit({ status: "skipped" })}>
+                        <IconClockPause size={17} aria-hidden /> Pomiń na razie
+                      </button>
+                      {f.type === "multi_choice" && (
+                        <button
+                          className="btn btn-primary answer-next"
+                          disabled={multi.length === 0}
+                          onClick={() => commit({ status: "answered", value: multi })}
+                        >
+                          Dalej <IconArrowRight size={17} aria-hidden />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  a && <span className={`bubble bubble-me ${a.status === "answered" ? "" : "is-tentative"}`}>{demoText(f, a)}</span>
+                )}
+              </div>
+            );
+          })}
+          {done && (
+            <div className="bot">
+              <Orb size={28} className="avatar-orb" />
+              <div className="bubble bubble-bot">
+                Gotowe. Tyle zajmuje klientowi kawałek briefu.
+                <span className="bubble-help">
+                  Pełny szablon ma {TEMPLATE_SIZE} pytań, a klient może przerwać w dowolnym miejscu.
+                </span>
+              </div>
             </div>
           )}
         </div>
-      )}
+      </div>
+
+      <aside className="try-brief" aria-label="Brief, który widzi agencja">
+        <div className="try-brief-head">
+          <span className="brief-head-icon" aria-hidden>
+            <IconFileText size={19} stroke={1.75} />
+          </span>
+          <h3>Twój brief</h3>
+          <span className="pct">{Math.round((settled / DEMO_FIELDS.length) * 100)}%</span>
+        </div>
+        <span className="meter meter-wide" aria-hidden>
+          <span style={{ width: `${(settled / DEMO_FIELDS.length) * 100}%` }} />
+        </span>
+        <ul className="try-rows">
+          {DEMO_FIELDS.map((f, i) => {
+            const a = answers[f.id];
+            return (
+              <li key={f.id} className={i === step && !done ? "is-now" : ""}>
+                <span className="brief-q">{f.label}</span>
+                <span className={`brief-a ${a && a.status !== "answered" ? "is-tentative" : ""}`}>
+                  {a ? demoText(f, a) : i === step && !done ? "Odpowiadasz teraz" : "Jeszcze nie padło"}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <button className="btn btn-small try-reset" onClick={reset} disabled={step === 0}>
+          <IconRefresh size={15} aria-hidden /> Od nowa
+        </button>
+      </aside>
     </div>
   );
 }
+

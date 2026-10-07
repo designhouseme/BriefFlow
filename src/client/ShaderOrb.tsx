@@ -59,6 +59,8 @@ void main() {
   }
   // Poświata w tle: szybko zanika, lekko oddycha.
   float glow = exp(-pow(max(r - R, 0.0) / 0.16, 1.3)) * (0.3 + 0.07 * sin(uTime * 0.55));
+  // Do zera przed krawędzią płótna, inaczej widać jaśniejszy kwadrat.
+  glow *= smoothstep(0.5, 0.36, r);
   vec3 outCol = col * alpha + mid * glow * (1.0 - alpha);
   float outA = alpha + glow * (1.0 - alpha);
   gl_FragColor = vec4(outCol, outA);
@@ -73,8 +75,11 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
   return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
 }
 
-/** `size` to bok płótna (z poświatą); sama kula ma ok. 42% tej szerokości. */
-export function ShaderOrb({ size = 240, className = "" }: { size?: number; className?: string }) {
+/**
+ * `size` to bok płótna (z poświatą); sama kula ma ok. 42% tej szerokości. Duże płótno (hero) kosztuje
+ * kilka razy więcej, więc gęstość pikseli ma limit (`maxDpr`), a rysowanie staje, gdy płótno zjedzie z ekranu.
+ */
+export function ShaderOrb({ size = 240, className = "", maxDpr = 2 }: { size?: number; className?: string; maxDpr?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [fallback, setFallback] = useState(false);
 
@@ -98,7 +103,7 @@ export function ShaderOrb({ size = 240, className = "" }: { size?: number; class
     gl.enableVertexAttribArray(pos);
     gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
 
-    const scale = Math.min(window.devicePixelRatio || 1, 2);
+    const scale = Math.min(window.devicePixelRatio || 1, maxDpr);
     canvas.width = Math.round(size * scale);
     canvas.height = Math.round(size * scale);
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -117,14 +122,22 @@ export function ShaderOrb({ size = 240, className = "" }: { size?: number; class
       return;
     }
     let frame = 0;
+    let visible = true;
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+    });
+    observer.observe(canvas);
     const start = performance.now();
     const loop = (now: number) => {
-      if (!document.hidden) draw((now - start) / 1000 + 12);
+      if (visible && !document.hidden) draw((now - start) / 1000 + 12);
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frame);
-  }, [size]);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [size, maxDpr]);
 
   if (fallback) return <Orb size={Math.round(size * 0.42)} className={className} />;
   return <canvas ref={ref} className={`shader-orb ${className}`} style={{ width: size, height: size }} aria-hidden />;

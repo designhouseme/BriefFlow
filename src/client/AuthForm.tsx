@@ -1,12 +1,15 @@
-import { IconArrowLeft, IconArrowUp, IconMail } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
+import { IconArrowLeft, IconArrowUp, IconKey, IconMail } from "@tabler/icons-react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, startLogin, verifyLogin } from "./api";
 
 /**
- * Logowanie agencji jak pole czatu: adres, potem 6 cyfr z maila w tym samym miejscu.
- * Po poprawnym kodzie `onDone` przenosi do aplikacji.
+ * Logowanie agencji w tym samym pasku, co pole na dole aplikacji: adres, potem 6 cyfr z maila
+ * w tym samym miejscu. Po poprawnym kodzie `onDone` przenosi do aplikacji. Może stać na stronie
+ * kilka razy (hero i zakończenie), więc identyfikatory pól są unikalne.
  */
 export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => void; autoFocus?: boolean }) {
+  const uid = useId();
+  const ids = { email: `${uid}-email`, code: `${uid}-code`, error: `${uid}-error`, note: `${uid}-note` };
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -70,34 +73,39 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
   if (step === "email") {
     return (
       <form className="auth" onSubmit={send} noValidate>
-        <label className="visually-hidden" htmlFor="auth-email">
-          Adres e-mail
-        </label>
-        <div className="auth-field">
-          <IconMail className="auth-icon" size={20} stroke={1.75} aria-hidden />
-          <input
-            id="auth-email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="Twój adres e-mail"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoFocus={autoFocus}
-            required
-            aria-invalid={Boolean(error) || undefined}
-            aria-describedby={error ? "auth-error" : "auth-note"}
-          />
-          <button className="btn btn-primary" disabled={busy || !email.trim()}>
-            {busy ? "Wysyłam…" : "Wyślij kod"}
+        <div className="bar auth-bar">
+          <span className="bar-lead tone-1" aria-hidden>
+            <IconMail size={19} stroke={1.9} />
+          </span>
+          <label className="bar-field">
+            <span className="visually-hidden">Adres e-mail</span>
+            <input
+              id={ids.email}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="Twój adres e-mail"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus={autoFocus}
+              required
+              aria-invalid={Boolean(error) || undefined}
+              aria-describedby={error ? ids.error : ids.note}
+            />
+          </label>
+          <button className="btn-send" disabled={busy || !email.trim()}>
+            <span className="btn-send-label">{busy ? "Wysyłam…" : "Wyślij kod"}</span>
+            <span className="btn-send-icon" aria-hidden>
+              <IconArrowUp size={18} stroke={2.4} />
+            </span>
           </button>
         </div>
         {error ? (
-          <p className="auth-error" id="auth-error" role="alert">
+          <p className="auth-error" id={ids.error} role="alert">
             {error}
           </p>
         ) : (
-          <p className="auth-note" id="auth-note">
+          <p className="auth-note" id={ids.note}>
             Logujesz się kodem z maila, bez hasła.
           </p>
         )}
@@ -114,38 +122,45 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
       }}
       noValidate
     >
-      <p className="auth-sent">
-        Wpisz kod wysłany na <strong>{email}</strong>.
-      </p>
-      <label className="visually-hidden" htmlFor="auth-code">
-        Kod z maila, 6 cyfr
-      </label>
-      <div className="auth-field is-code">
-        <input
-          id="auth-code"
-          ref={codeRef}
-          className="auth-code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9]*"
-          maxLength={6}
-          placeholder="000000"
-          value={code}
-          onChange={(e) => {
-            const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
-            setCode(digits);
-            if (digits.length === 6) verify(digits);
-          }}
-          aria-invalid={Boolean(error) || undefined}
-          aria-describedby={error ? "auth-error" : undefined}
-        />
-        <button className="btn btn-primary" disabled={busy || code.length !== 6}>
-          {busy ? "Sprawdzam…" : "Zaloguj"} <IconArrowUp className="auth-go" size={17} aria-hidden />
+      <div className="bar auth-bar">
+        <span className="bar-lead tone-3" aria-hidden>
+          <IconKey size={19} stroke={1.9} />
+        </span>
+        <label className="bar-field">
+          <span className="visually-hidden">Kod z maila wysłanego na {email}, 6 cyfr</span>
+          <input
+            id={ids.code}
+            ref={codeRef}
+            className="auth-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]*"
+            maxLength={6}
+            placeholder="000000"
+            value={code}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
+              setCode(digits);
+              if (digits.length === 6) verify(digits);
+            }}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={error ? ids.error : ids.note}
+          />
+        </label>
+        <button className="btn-send" disabled={busy || code.length !== 6}>
+          <span className="btn-send-label">{busy ? "Sprawdzam…" : "Zaloguj"}</span>
+          <span className="btn-send-icon" aria-hidden>
+            <IconArrowUp size={18} stroke={2.4} />
+          </span>
         </button>
       </div>
-      {error && (
-        <p className="auth-error" id="auth-error" role="alert">
+      {error ? (
+        <p className="auth-error" id={ids.error} role="alert">
           {error}
+        </p>
+      ) : (
+        <p className="auth-note" id={ids.note}>
+          Wpisz kod wysłany na <strong>{email}</strong>.
         </p>
       )}
       <div className="auth-actions">
