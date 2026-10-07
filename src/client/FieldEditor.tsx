@@ -1,6 +1,6 @@
 import { IconCheck, IconReceipt, IconX } from "@tabler/icons-react";
 import { useState } from "react";
-import { FIELD_TYPE_ICON } from "./icons";
+import { FIELD_TYPE_ICON, toneOf } from "./icons";
 import { fieldToInput } from "../shared/ops";
 import { CHOICE_TYPES, type Field, type FieldInput, FIELD_TYPES } from "../shared/types";
 import type { BriefStub } from "./connection";
@@ -37,43 +37,62 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
   }
 
   return (
-    <form className="editor" onSubmit={save}>
-      <div className="type-picker" role="radiogroup" aria-label="Typ pola">
-        {FIELD_TYPES.map((t) => {
-          const Icon = FIELD_TYPE_ICON[t.type];
-          return (
-            <button
-              type="button"
-              key={t.type}
-              role="radio"
-              aria-checked={draft.type === t.type}
-              className={`type-option ${draft.type === t.type ? "is-on" : ""}`}
-              onClick={() => {
-                set({ type: t.type });
-                if (CHOICE_TYPES.includes(t.type) && !optionsText.trim()) setOptionsText("Opcja 1\nOpcja 2");
-              }}
-              title={t.hint}
-            >
-              <Icon size={16} aria-hidden />
-              {t.label}
-            </button>
-          );
-        })}
+    <form className="field-editor" onSubmit={save}>
+      <header className="fe-head">
+        <h3>Edytujesz pytanie</h3>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Zamknij bez zapisu">
+          <IconX size={18} />
+        </button>
+      </header>
+
+      <div className="fe-block">
+        <p className="fe-label" id={`types-${field.id}`}>
+          Typ odpowiedzi
+        </p>
+        <div className="type-grid is-compact" role="radiogroup" aria-labelledby={`types-${field.id}`}>
+          {FIELD_TYPES.map((t, i) => {
+            const Icon = FIELD_TYPE_ICON[t.type];
+            const on = draft.type === t.type;
+            return (
+              <button
+                type="button"
+                key={t.type}
+                role="radio"
+                aria-checked={on}
+                className={`type-card ${toneOf(i)} ${on ? "is-on" : ""}`}
+                onClick={() => {
+                  set({ type: t.type });
+                  if (CHOICE_TYPES.includes(t.type) && !optionsText.trim()) setOptionsText("Opcja 1\nOpcja 2");
+                }}
+                title={t.hint}
+              >
+                <span className="type-icon" aria-hidden>
+                  <Icon size={16} stroke={1.9} />
+                </span>
+                <span className="type-text">
+                  <strong>{t.label}</strong>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <label className="label">
-        Pytanie
-        <input className="input" value={draft.label} onChange={(e) => set({ label: e.target.value })} autoFocus />
-      </label>
-      <label className="label">
-        <span>
-          Podpowiedź <span className="muted">(opcjonalnie)</span>
-        </span>
-        <input className="input" value={draft.help ?? ""} onChange={(e) => set({ help: e.target.value })} />
-      </label>
+      <div className="fe-grid">
+        <label className="label">
+          Pytanie
+          <input className="input" value={draft.label} onChange={(e) => set({ label: e.target.value })} autoFocus />
+        </label>
+        <label className="label">
+          <span>
+            Podpowiedź <span className="muted">(opcjonalnie)</span>
+          </span>
+          <input className="input" value={draft.help ?? ""} onChange={(e) => set({ help: e.target.value })} />
+        </label>
+      </div>
 
       {isChoice && (
-        <>
+        <div className="fe-block">
           <label className="label">
             Opcje, każda w osobnej linii
             <textarea
@@ -88,13 +107,13 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
               <span>
                 Zmieniają wycenę <span className="muted">(widzi tylko agencja)</span>
               </span>
-              <div className="type-picker">
+              <div className="chip-row">
                 {labels.map((label) => (
                   <button
                     type="button"
                     key={label}
                     aria-pressed={quoted(label)}
-                    className={`type-option ${quoted(label) ? "is-on" : ""}`}
+                    className={`chip ${quoted(label) ? "is-on" : ""}`}
                     onClick={() => toggleQuote(label)}
                   >
                     <IconReceipt size={15} aria-hidden /> {label}
@@ -103,11 +122,11 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
               </div>
             </div>
           )}
-          <label className="check-row">
+          <label className="switch-row">
             <input type="checkbox" checked={Boolean(draft.allowOther)} onChange={(e) => set({ allowOther: e.target.checked })} />
-            Dodaj opcję „Inne…” z polem tekstowym
+            <span>Dodaj opcję „Inne…” z polem tekstowym</span>
           </label>
-        </>
+        </div>
       )}
 
       {draft.type === "confirm" && (
@@ -126,7 +145,7 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
       )}
 
       {draft.type === "scale" && (
-        <div className="row">
+        <div className="fe-grid">
           <label className="label">
             Lewa skrajność
             <input className="input" value={draft.scaleMin ?? ""} onChange={(e) => set({ scaleMin: e.target.value })} />
@@ -138,20 +157,20 @@ export function FieldEditor({ field, stub, onClose }: { field: Field; stub: Brie
         </div>
       )}
 
-      <label className="check-row">
+      <label className="switch-row">
         <input type="checkbox" checked={draft.required} onChange={(e) => set({ required: e.target.checked })} />
-        Baza: bez tej odpowiedzi nie startujemy
+        <span>Baza: bez tej odpowiedzi nie startujemy</span>
       </label>
 
       {error && <p className="error">{error}</p>}
-      <div className="row">
+      <footer className="fe-foot">
+        <button type="button" className="btn btn-quiet" onClick={onClose}>
+          Anuluj
+        </button>
         <button className="btn btn-primary" disabled={busy}>
-          <IconCheck size={16} aria-hidden /> Zapisz
+          <IconCheck size={16} aria-hidden /> Zapisz pytanie
         </button>
-        <button type="button" className="btn" onClick={onClose}>
-          <IconX size={16} aria-hidden /> Anuluj
-        </button>
-      </div>
+      </footer>
     </form>
   );
 }

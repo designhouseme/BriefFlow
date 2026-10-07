@@ -30,12 +30,15 @@ export function Popover({
   triggerClass = "btn",
   label,
   align = "end",
+  side = "bottom",
   children,
 }: {
   trigger: React.ReactNode;
   triggerClass?: string;
   label?: string;
   align?: "start" | "end";
+  /** Pod przyciskiem albo z prawej, wyrównany do dołu (awatar w pasku ikon). */
+  side?: "bottom" | "right";
   children: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -55,7 +58,7 @@ export function Popover({
         {trigger}
       </button>
       {open && (
-        <div className={`pop-panel is-${align}`} id={id} role="dialog" aria-label={label}>
+        <div className={`pop-panel is-${side === "right" ? "right" : align}`} id={id} role="dialog" aria-label={label}>
           {children(close)}
         </div>
       )}
@@ -67,6 +70,7 @@ export interface MenuItem {
   label: string;
   icon?: React.ReactNode;
   danger?: boolean;
+  disabled?: boolean;
   onSelect: () => void;
 }
 
@@ -79,13 +83,13 @@ export function Menu({ label, items, className = "" }: { label: string; items: M
   useDismiss(open, close, root);
 
   useEffect(() => {
-    if (open) list.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    if (open) list.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   }, [open]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
-    const buttons = Array.from(list.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+    const buttons = Array.from(list.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const next = (index + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
     buttons[next]?.focus();
@@ -103,6 +107,7 @@ export function Menu({ label, items, className = "" }: { label: string; items: M
               <button
                 role="menuitem"
                 className={item.danger ? "is-danger" : ""}
+                disabled={item.disabled}
                 onClick={() => {
                   close();
                   item.onSelect();
@@ -133,4 +138,19 @@ export function useCopy() {
     }
   };
   return { copied, copy };
+}
+
+/**
+ * Płynne przewinięcie do elementu w jego najbliższym przewijanym kontenerze. Zwykłe
+ * scrollIntoView({ behavior: "smooth" }) przerywa się, gdy po drodze są kontenery z overflow: hidden.
+ */
+export function scrollToElement(id: string) {
+  const target = document.getElementById(id);
+  if (!target) return;
+  let box = target.parentElement;
+  while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
+  const container = box ?? document.scrollingElement ?? document.documentElement;
+  const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16;
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  container.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
 }

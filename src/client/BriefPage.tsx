@@ -6,6 +6,7 @@ import {
   IconCheck,
   IconCopy,
   IconExternalLink,
+  IconGitBranch,
   IconHistory,
   IconListCheck,
   IconPencil,
@@ -18,8 +19,8 @@ import {
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { baseStatus, type Flag, quoteItems, redFlags } from "../shared/checks";
-import { openQuestions } from "../shared/flow";
-import { isSectionVisible, progress } from "../shared/ops";
+import { isSettled, openQuestions } from "../shared/flow";
+import { isFieldVisible, isSectionVisible, progress } from "../shared/ops";
 import {
   type AccessInfo,
   type AiResult,
@@ -39,7 +40,7 @@ import { conditionText, FieldCard } from "./FieldCard";
 import { FIELD_TYPE_ICON, sectionIcon, toneOf } from "./icons";
 import { Orb } from "./Orb";
 import { ClientShell, percent } from "./Shell";
-import { Popover, useCopy } from "./ui";
+import { Menu, Popover, scrollToElement, useCopy } from "./ui";
 
 // --- Agencja: brief w aplikacji (wejście z sesji, bez tokenu w adresie) ---
 
@@ -151,28 +152,35 @@ function ConnectedAgency({ id, aiEnabled, isNew }: { id: string; aiEnabled: bool
         }
       />
       <div className="panel">
-        <div className="panel-scroll">
-          <div className="editor-page">
-            {isNew && <NewBriefNote id={id} stub={agent.stub} />}
+        <div className="editor">
+          <aside className="editor-aside" aria-label="Podsumowanie briefu">
             <Overview brief={brief} />
             <Checks brief={brief} flags={flags} />
-            {brief.sections.map((section, index) => (
-              <SectionBlock
-                key={section.id}
-                index={index}
-                flags={flags}
-                brief={brief}
-                section={section}
-                stub={agent.stub}
-                run={run}
-                editing={editing}
-                setEditing={setEditing}
-              />
-            ))}
-            <AddSection stub={agent.stub} run={run} />
+            <SectionNav brief={brief} />
+          </aside>
+          <div className="editor-col">
+            <div className="editor-scroll">
+              <div className="editor-main">
+              {isNew && <NewBriefNote id={id} stub={agent.stub} />}
+              {brief.sections.map((section, index) => (
+                <SectionBlock
+                  key={section.id}
+                  index={index}
+                  flags={flags}
+                  brief={brief}
+                  section={section}
+                  stub={agent.stub}
+                  run={run}
+                  editing={editing}
+                  setEditing={setEditing}
+                />
+              ))}
+              <AddSection stub={agent.stub} run={run} />
+              </div>
+            </div>
+            <AiDock brief={brief} stub={agent.stub} run={run} aiEnabled={aiEnabled} />
           </div>
         </div>
-        <AiDock brief={brief} stub={agent.stub} run={run} aiEnabled={aiEnabled} />
         {historyOpen && <HistorySheet stub={agent.stub} updatedAt={brief.updatedAt} onClose={() => setHistoryOpen(false)} />}
       </div>
     </>
@@ -289,25 +297,71 @@ function Overview({ brief }: { brief: Brief }) {
   const p = progress(brief);
   const open = openQuestions(brief).length;
   const settled = p.answered + p.unknown;
-  const sent = brief.completedAt
-    ? `Klient wysłał brief ${new Date(brief.completedAt).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}${open ? `, ${open} do uzupełnienia.` : "."}`
+  const pct = percent(settled, p.total);
+  const note = brief.completedAt
+    ? `Klient wysłał brief ${new Date(brief.completedAt).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}.`
     : open
-      ? `${open} pytań jeszcze otwartych.`
+      ? "Klient może wracać tym samym linkiem i uzupełniać resztę."
       : "Wszystko uzupełnione.";
   return (
-    <section className="overview" aria-label="Postęp">
-      <div className="overview-num">
-        <strong>{percent(settled, p.total)}%</strong>
-        <span>
-          {settled} z {p.total} odpowiedzi
-          {p.skipped > 0 && `, ${p.skipped} pominięte`}
-        </span>
+    <section className="aside-card overview" aria-label="Postęp">
+      <div className="overview-top">
+        <strong className="overview-pct">{pct}%</strong>
+        <span className="overview-label">gotowe</span>
       </div>
       <span className="meter meter-wide" aria-hidden>
-        <span style={{ width: `${percent(settled, p.total)}%` }} />
+        <span style={{ width: `${pct}%` }} />
       </span>
-      <p className="overview-note">{sent}</p>
+      <dl className="stats">
+        <div>
+          <dt>Odpowiedzi</dt>
+          <dd>
+            {settled}/{p.total}
+          </dd>
+        </div>
+        <div>
+          <dt>Pominięte</dt>
+          <dd>{p.skipped}</dd>
+        </div>
+        <div>
+          <dt>Otwarte</dt>
+          <dd>{open}</dd>
+        </div>
+      </dl>
+      <p className="overview-note">{note}</p>
     </section>
+  );
+}
+
+/** Spis sekcji: skok do sekcji i postęp w każdej. Ukryte warunkowo są wyszarzone. */
+function SectionNav({ brief }: { brief: Brief }) {
+  return (
+    <nav className="aside-card section-nav" aria-label="Sekcje briefu">
+      <h2 className="aside-title">Sekcje</h2>
+      <ul>
+        {brief.sections.map((section, index) => {
+          const Icon = sectionIcon(section);
+          const shown = isSectionVisible(brief, section);
+          const fields = section.fields.filter((f) => isFieldVisible(brief, f));
+          const settled = fields.filter((f) => isSettled(brief.answers[f.id]?.status)).length;
+          const done = shown && fields.length > 0 && settled === fields.length;
+          return (
+            <li key={section.id}>
+              <button
+                className={`nav-row ${shown ? "" : "is-hidden"}`}
+                onClick={() => scrollToElement(`sec-${section.id}`)}
+              >
+                <span className={`nav-icon ${done ? "is-done" : toneOf(index)}`} aria-hidden>
+                  {done ? <IconCheck size={14} stroke={2.6} /> : <Icon size={14} stroke={2} />}
+                </span>
+                <span className="nav-text">{section.title}</span>
+                <span className="nav-count">{shown ? `${settled}/${fields.length}` : "ukryta"}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 
@@ -315,7 +369,7 @@ function Overview({ brief }: { brief: Brief }) {
 function Checks({ brief, flags }: { brief: Brief; flags: Flag[] }) {
   const base = baseStatus(brief);
   const quotes = quoteItems(brief);
-  const jump = (fieldId: string) => document.getElementById(fieldId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  const jump = (fieldId: string) => scrollToElement(fieldId);
   const SHOWN = 6;
 
   return (
@@ -419,38 +473,65 @@ function SectionBlock({
 }) {
   const hidden = !isSectionVisible(brief, section);
   const Icon = sectionIcon(section);
+  const visible = section.fields.filter((f) => isFieldVisible(brief, f));
+  const settled = visible.filter((f) => isSettled(brief.answers[f.id]?.status)).length;
   return (
-    <section className={`section ${hidden ? "is-conditional" : ""}`}>
-      <div className="section-head">
-        <span className={`section-num ${toneOf(index)}`} aria-hidden>
+    <section className={`section ${hidden ? "is-conditional" : ""}`} id={`sec-${section.id}`} aria-labelledby={`sec-${section.id}-title`}>
+      <header className="section-head">
+        <span className={`section-icon ${toneOf(index)}`} aria-hidden>
           <Icon size={18} stroke={1.9} />
         </span>
-        <h2 className="section-title">{section.title}</h2>
-        <button
-          className="link-btn danger"
-          onClick={() => confirm(`Usunąć sekcję „${section.title}” razem z pytaniami?`) && run(() => stub.removeSection(section.id))}
-        >
-          <IconTrash size={15} aria-hidden /> <span className="hide-sm">Usuń sekcję</span>
-        </button>
-      </div>
-      {section.description && <p className="section-desc">{section.description}</p>}
-      {section.showIf && <p className="condition">{conditionText(brief, section.showIf)}</p>}
-
-      {section.fields.map((field) => (
-        <FieldCard
-          key={field.id}
-          brief={brief}
-          field={field}
-          role="agency"
-          stub={stub}
-          run={run}
-          editing={editing === field.id}
-          setEditing={setEditing}
-          flags={flags.filter((f) => f.fieldId === field.id)}
+        <div className="section-titles">
+          <h2 className="section-title" id={`sec-${section.id}-title`}>
+            {section.title}
+          </h2>
+          <p className="section-meta">
+            {hidden ? "Klient jeszcze jej nie widzi" : `${settled} z ${visible.length} odpowiedzi`}
+          </p>
+        </div>
+        <Menu
+          label={`Akcje sekcji: ${section.title}`}
+          items={[
+            {
+              label: "Usuń sekcję",
+              icon: <IconTrash size={16} />,
+              danger: true,
+              onSelect: () =>
+                confirm(`Usunąć sekcję „${section.title}” razem z pytaniami?`) && run(() => stub.removeSection(section.id)),
+            },
+          ]}
         />
-      ))}
-      {section.fields.length === 0 && <p className="section-empty">Sekcja jest pusta.</p>}
-      <AddField section={section} stub={stub} run={run} onCreated={setEditing} />
+      </header>
+      {(section.description || section.showIf) && (
+        <div className="section-notes">
+          {section.description && <p className="section-desc">{section.description}</p>}
+          {section.showIf && (
+            <p className="condition">
+              <IconGitBranch size={15} aria-hidden /> {conditionText(brief, section.showIf)}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="section-fields">
+        {section.fields.map((field, i) => (
+          <FieldCard
+            key={field.id}
+            brief={brief}
+            field={field}
+            role="agency"
+            stub={stub}
+            run={run}
+            editing={editing === field.id}
+            setEditing={setEditing}
+            flags={flags.filter((f) => f.fieldId === field.id)}
+            first={i === 0}
+            last={i === section.fields.length - 1}
+          />
+        ))}
+        {section.fields.length === 0 && <p className="section-empty">Sekcja jest pusta. Dodaj pierwsze pytanie.</p>}
+        <AddField section={section} stub={stub} run={run} onCreated={setEditing} />
+      </div>
     </section>
   );
 }
@@ -480,39 +561,46 @@ function AddField({
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
-      <button className="add-btn" onClick={() => setOpen(true)}>
-        <IconPlus size={16} aria-hidden /> Dodaj pytanie
+      <button className="add-row" onClick={() => setOpen(true)}>
+        <span className="add-icon" aria-hidden>
+          <IconPlus size={16} stroke={2.2} />
+        </span>
+        Dodaj pytanie
       </button>
     );
   }
   return (
     <div className="palette">
-      <p className="label">Jaki typ pytania?</p>
-      <div className="palette-grid">
+      <div className="palette-head">
+        <h3>Jaki typ pytania?</h3>
+        <button className="icon-btn" onClick={() => setOpen(false)} aria-label="Anuluj dodawanie">
+          <IconX size={18} />
+        </button>
+      </div>
+      <div className="type-grid">
         {FIELD_TYPES.map((t, i) => {
           const Icon = FIELD_TYPE_ICON[t.type];
           return (
             <button
               key={t.type}
-              className={`palette-item ${toneOf(i)}`}
+              className={`type-card ${toneOf(i)}`}
               onClick={async () => {
                 const id = await run(() => stub.addField(section.id, null, defaultInput(t.type)));
                 setOpen(false);
                 if (id) onCreated(id);
               }}
             >
-              <span className="palette-icon" aria-hidden>
+              <span className="type-icon" aria-hidden>
                 <Icon size={18} stroke={1.9} />
               </span>
-              <strong>{t.label}</strong>
-              <span>{t.hint}</span>
+              <span className="type-text">
+                <strong>{t.label}</strong>
+                <span>{t.hint}</span>
+              </span>
             </button>
           );
         })}
       </div>
-      <button className="link-btn" onClick={() => setOpen(false)}>
-        <IconX size={15} aria-hidden /> Anuluj
-      </button>
     </div>
   );
 }
@@ -522,14 +610,17 @@ function AddSection({ stub, run }: { stub: BriefStub; run: Run }) {
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
-      <button className="add-btn add-section" onClick={() => setOpen(true)}>
-        <IconPlus size={16} aria-hidden /> Dodaj sekcję
+      <button className="add-row add-section" onClick={() => setOpen(true)}>
+        <span className="add-icon" aria-hidden>
+          <IconPlus size={16} stroke={2.2} />
+        </span>
+        Dodaj sekcję
       </button>
     );
   }
   return (
     <form
-      className="inline-form"
+      className="new-section"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!title.trim()) return;
@@ -538,18 +629,19 @@ function AddSection({ stub, run }: { stub: BriefStub; run: Run }) {
         setOpen(false);
       }}
     >
-      <input
-        className="input"
-        placeholder="Tytuł sekcji, np. SEO i analityka"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        aria-label="Tytuł sekcji"
-        autoFocus
-      />
-      <button className="btn btn-primary">Dodaj</button>
-      <button type="button" className="btn btn-quiet" onClick={() => setOpen(false)}>
-        Anuluj
-      </button>
+      <label className="composer-line">
+        <IconPlus size={18} className="composer-lead" aria-hidden />
+        <span className="visually-hidden">Tytuł sekcji</span>
+        <input placeholder="Tytuł sekcji, np. SEO i analityka" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+      </label>
+      <div className="row">
+        <button type="button" className="btn btn-quiet" onClick={() => setOpen(false)}>
+          Anuluj
+        </button>
+        <button className="btn btn-primary" disabled={!title.trim()}>
+          Dodaj sekcję
+        </button>
+      </div>
     </form>
   );
 }

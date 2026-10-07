@@ -1,6 +1,9 @@
 import {
   IconAlertTriangle,
+  IconArrowDown,
+  IconArrowUp,
   IconCheck,
+  IconGitBranch,
   IconClockPause,
   IconHelpCircle,
   IconListCheck,
@@ -15,6 +18,7 @@ import type { Answer, AnswerInput, Brief, Field, Option, Role, ShowIf } from "..
 import type { BriefStub, Run } from "./connection";
 import { FieldEditor } from "./FieldEditor";
 import { optionIcon, toneOf } from "./icons";
+import { Menu } from "./ui";
 
 const OTHER = "__other";
 
@@ -37,9 +41,19 @@ interface Props {
   editing: boolean;
   setEditing: (fieldId: string | null) => void;
   flags?: Flag[];
+  /** Pierwsze / ostatnie w sekcji: wyłącza przesuwanie w tę stronę. */
+  first?: boolean;
+  last?: boolean;
 }
 
-export function FieldCard({ brief, field, role, stub, run, editing, setEditing, flags = [] }: Props) {
+function answeredBy(answer: Answer) {
+  const who = answer.by === "client" ? "Klient" : "Agencja";
+  const at = new Date(answer.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return `${who}, ${at}`;
+}
+
+/** Pytanie w widoku agencji: osobna karta z odpowiedzią do kliknięcia, „Nie wiem”, „Pomiń” i akcjami. */
+export function FieldCard({ brief, field, role, stub, run, editing, setEditing, flags = [], first, last }: Props) {
   const answer = brief.answers[field.id];
   const save = (input: AnswerInput) => run(() => stub.setAnswer(field.id, input));
   const clear = () => run(() => stub.clearAnswer(field.id));
@@ -48,44 +62,65 @@ export function FieldCard({ brief, field, role, stub, run, editing, setEditing, 
 
   if (editing) {
     return (
-      <div className="field is-editing" id={field.id}>
+      <article className="qcard is-editing" id={field.id}>
         <FieldEditor field={field} stub={stub} onClose={() => setEditing(null)} />
-      </div>
+      </article>
     );
   }
 
   return (
-    <div className={`field ${hidden ? "is-conditional" : ""}`} id={field.id}>
-      <div className="field-head">
-        <div className="field-title">
+    <article className={`qcard ${hidden ? "is-conditional" : ""}`} id={field.id}>
+      <header className="qcard-head">
+        <div className="qcard-title">
           <h3 className="field-q">{field.label}</h3>
           {field.required && (
-            <span className="tag" title="Bez tej odpowiedzi nie startujemy">
+            <span className="badge badge-soft" title="Bez tej odpowiedzi nie startujemy">
               <IconListCheck size={14} aria-hidden /> Baza
             </span>
           )}
           {role === "agency" && field.origin === "ai" && (
-            <span className="tag tag-ai" title={field.reason ?? "Dodane przez AI"}>
+            <span className="badge badge-ai" title={field.reason ?? "Dodane przez AI"}>
               <IconWand size={14} aria-hidden /> AI
             </span>
           )}
         </div>
         {role === "agency" && (
-          <div className="field-tools">
-            <button className="link-btn" onClick={() => setEditing(field.id)}>
-              <IconPencil size={15} aria-hidden /> Edytuj
+          <div className="qcard-tools">
+            <button className="icon-btn" onClick={() => setEditing(field.id)} aria-label={`Edytuj pytanie: ${field.label}`} title="Edytuj">
+              <IconPencil size={17} />
             </button>
-            <button
-              className="link-btn danger"
-              onClick={() => confirm(`Usunąć pytanie „${field.label}”?`) && run(() => stub.removeField(field.id))}
-            >
-              <IconTrash size={15} aria-hidden /> Usuń
-            </button>
+            <Menu
+              label={`Akcje pytania: ${field.label}`}
+              items={[
+                {
+                  label: "Przesuń wyżej",
+                  icon: <IconArrowUp size={16} />,
+                  disabled: first,
+                  onSelect: () => run(() => stub.nudgeField(field.id, "up")),
+                },
+                {
+                  label: "Przesuń niżej",
+                  icon: <IconArrowDown size={16} />,
+                  disabled: last,
+                  onSelect: () => run(() => stub.nudgeField(field.id, "down")),
+                },
+                {
+                  label: "Usuń pytanie",
+                  icon: <IconTrash size={16} />,
+                  danger: true,
+                  onSelect: () => confirm(`Usunąć pytanie „${field.label}”?`) && run(() => stub.removeField(field.id)),
+                },
+              ]}
+            />
           </div>
         )}
-      </div>
+      </header>
       {field.help && <p className="help">{field.help}</p>}
-      {role === "agency" && field.showIf && <p className="condition">{conditionText(brief, field.showIf)}</p>}
+      {role === "agency" && field.showIf && (
+        <p className="condition">
+          <IconGitBranch size={15} aria-hidden /> {conditionText(brief, field.showIf)}
+        </p>
+      )}
       {flags.map((flag) => (
         <p className="flag" key={flag.title}>
           <IconAlertTriangle size={17} aria-hidden />
@@ -95,9 +130,11 @@ export function FieldCard({ brief, field, role, stub, run, editing, setEditing, 
         </p>
       ))}
 
-      <AnswerControls field={field} answer={answer} save={save} clear={clear} />
+      <div className="qcard-body">
+        <AnswerControls field={field} answer={answer} save={save} clear={clear} />
+      </div>
 
-      <div className="field-foot">
+      <footer className="qcard-foot">
         <button
           className={`quick ${status === "unknown" ? "is-on" : ""}`}
           aria-pressed={status === "unknown"}
@@ -112,11 +149,9 @@ export function FieldCard({ brief, field, role, stub, run, editing, setEditing, 
         >
           <IconClockPause size={15} aria-hidden /> {status === "skipped" ? "Pominięte" : "Pomiń na razie"}
         </button>
-        {role === "agency" && answer && (
-          <span className="who">odp. {answer.by === "client" ? "klient" : "agencja"}</span>
-        )}
-      </div>
-    </div>
+        {role === "agency" && answer && <span className="who">{answeredBy(answer)}</span>}
+      </footer>
+    </article>
   );
 }
 

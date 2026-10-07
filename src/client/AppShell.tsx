@@ -22,7 +22,7 @@ import { ApiError, clientUrl, deleteBrief, getMe, listBriefs, logout, takePrimed
 import { Orb } from "./Orb";
 import { navigate, onLinkClick } from "./router";
 import { useTheme } from "./theme";
-import { Menu } from "./ui";
+import { Menu, Popover } from "./ui";
 
 // Aplikacja agencji jak w czacie: wąski pasek ikon, lista briefów pogrupowana po dniach, główny panel.
 
@@ -138,7 +138,6 @@ function ThemeButton({ className, size }: { className: string; size: number }) {
 }
 
 function Rail({ onBriefs }: { onBriefs: () => void }) {
-  const { me } = useApp();
   return (
     <nav className="rail" aria-label="Aplikacja">
       <a className="rail-home" href="/app" onClick={(e) => onLinkClick(e, "/app")} aria-label="DH Briefing, nowy brief">
@@ -150,14 +149,52 @@ function Rail({ onBriefs }: { onBriefs: () => void }) {
       <a className="rail-btn" href="/app" onClick={(e) => onLinkClick(e, "/app")} aria-label="Nowy brief" title="Nowy brief">
         <IconPlus size={21} stroke={1.7} />
       </a>
-      <a className="rail-btn" href="/" aria-label="Strona DH Briefing" title="Strona DH Briefing">
-        <IconWorld size={21} stroke={1.7} />
-      </a>
       <span className="rail-gap" />
-      <span className="rail-avatar" title={me.email} aria-label={`Zalogowano jako ${me.email}`}>
-        {firstName(me.email)[0]}
-      </span>
+      <AccountButton />
     </nav>
+  );
+}
+
+/** Awatar na dole paska ikon: konto i akcje w panelu obok. */
+function AccountButton() {
+  const { me } = useApp();
+  const name = firstName(me.email);
+  return (
+    <Popover
+      side="right"
+      triggerClass="rail-avatar"
+      label={`Konto: ${me.email}`}
+      trigger={<span aria-hidden>{name[0]}</span>}
+    >
+      {(close) => (
+        <div className="account-pop">
+          <div className="account-head">
+            <span className="account-avatar" aria-hidden>
+              {name[0]}
+            </span>
+            <span className="account-text">
+              <strong>{name}</strong>
+              <span>{me.email}</span>
+            </span>
+          </div>
+          <div className="pop-items">
+            <a className="pop-item" href="/" onClick={close}>
+              <IconWorld size={17} aria-hidden /> Strona startowa
+            </a>
+            <button
+              className="pop-item is-danger"
+              onClick={async () => {
+                close();
+                await logout().catch(() => undefined);
+                navigate("/", { replace: true });
+              }}
+            >
+              <IconLogout size={17} aria-hidden /> Wyloguj
+            </button>
+          </div>
+        </div>
+      )}
+    </Popover>
   );
 }
 
@@ -185,7 +222,7 @@ function groupByDay(briefs: BriefSummary[]): Group[] {
 const TEMPLATE_ICON: Record<string, typeof IconWorld> = { www: IconWorld, empty: IconFile };
 
 function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () => void }) {
-  const { me, briefs, refresh, notify } = useApp();
+  const { briefs, refresh, notify } = useApp();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -336,26 +373,6 @@ function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () =
         )}
       </div>
 
-      <div className="account">
-        <span className="account-avatar" aria-hidden>
-          {firstName(me.email)[0]}
-        </span>
-        <span className="account-text">
-          <strong>{firstName(me.email)}</strong>
-          <span>{me.email}</span>
-        </span>
-        <button
-          className="icon-btn"
-          aria-label="Wyloguj"
-          title="Wyloguj"
-          onClick={async () => {
-            await logout().catch(() => undefined);
-            navigate("/", { replace: true });
-          }}
-        >
-          <IconLogout size={18} />
-        </button>
-      </div>
     </aside>
   );
 }
