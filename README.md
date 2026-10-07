@@ -8,8 +8,6 @@
 
 Wysyłasz jeden link. Klient odpowiada na jedno pytanie naraz, głównie klikając,<br>a każda odpowiedź od razu trafia do Twojego briefu.
 
-**[Kliknij jak klient: demo na briefflow.designhouse.me](https://briefflow.designhouse.me/#demo)**
-
 </div>
 
 <p align="center">
