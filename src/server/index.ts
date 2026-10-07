@@ -33,6 +33,7 @@ async function createBrief(request: Request, env: Env, session: Session): Promis
     title: String(body.title ?? "").trim().slice(0, 120),
     clientName: String(body.clientName ?? "").trim().slice(0, 120),
     owner: session.key,
+    origin: new URL(request.url).origin,
   });
   await session.account.addBrief({ ...created.summary, agencyToken: created.agency, clientToken: created.client });
   return json({ id }, 201);

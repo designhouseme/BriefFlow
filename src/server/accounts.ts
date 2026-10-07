@@ -84,6 +84,11 @@ export class AccountStore extends DurableObject<Env> {
     this.sql.exec(`INSERT OR IGNORE INTO profile (key, value) VALUES ('email', ?)`, email);
   }
 
+  /** Adres osoby, do której należy konto (powiadomienia o briefach). */
+  ownerEmail(): string | null {
+    return this.email();
+  }
+
   // --- Logowanie kodem ---
 
   async requestCode(email: string): Promise<CodeRequest> {

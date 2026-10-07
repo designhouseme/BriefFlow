@@ -19,6 +19,7 @@ import { briefFromTemplate } from "../shared/templates";
 import type { Actor, AiResult, AnswerInput, Brief, FieldInput, LogEntry, Role } from "../shared/types";
 import type { BriefSummary } from "../shared/account";
 import { accountStub } from "./accounts";
+import { briefSentMail, sendMail } from "./emails";
 import { runCommand } from "./ai";
 
 type ConnState = { role: Role };
@@ -72,11 +73,12 @@ export class BriefAgent extends Agent<Env, Brief | null> {
 
   // --- Dostęp (wywoływane przez Worker przez RPC Durable Object, nie przez przeglądarkę) ---
 
-  async initBrief(input: { templateId: string; title: string; clientName: string; owner: string }) {
+  async initBrief(input: { templateId: string; title: string; clientName: string; owner: string; origin: string }) {
     this.ensureTables();
     if (this.state) throw new Error("Brief już istnieje.");
     const tokens = { agency: randomToken(), client: randomToken() };
-    this.sql`INSERT INTO meta (key, value) VALUES ('agency_token', ${tokens.agency}), ('client_token', ${tokens.client}), ('owner', ${input.owner})`;
+    // origin: adres aplikacji, z którego utworzono brief; trafia do linków w mailach.
+    this.sql`INSERT INTO meta (key, value) VALUES ('agency_token', ${tokens.agency}), ('client_token', ${tokens.client}), ('owner', ${input.owner}), ('origin', ${input.origin})`;
     this.setState(briefFromTemplate(input.templateId, { id: this.name, title: input.title, clientName: input.clientName }));
     this.logEvent("agency", `Utworzono brief „${this.state!.title}”.`);
     return { ...tokens, summary: summaryOf(this.state!) };
@@ -234,6 +236,27 @@ export class BriefAgent extends Agent<Env, Brief | null> {
     const open = openQuestions(this.state!).length;
     this.logEvent(role, open ? `Zakończono brief, ${open} pytań do uzupełnienia` : "Zakończono brief, wszystko uzupełnione");
     this.setState({ ...this.state!, completedAt: Date.now(), updatedAt: Date.now() });
+    if (role === "client") this.ctx.waitUntil(this.notifyOwner(open));
+  }
+
+  /** Mail do osoby z agencji, która utworzyła brief: klient go wysłał. Błąd wysyłki nie psuje briefu. */
+  private async notifyOwner(open: number) {
+    try {
+      const meta = Object.fromEntries(
+        this.sql<{ key: string; value: string }>`SELECT key, value FROM meta WHERE key IN ('owner', 'origin')`.map((r) => [r.key, r.value]),
+      );
+      if (!meta.owner || !meta.origin) return;
+      const to = await accountStub(this.env, meta.owner).ownerEmail();
+      if (!to) return;
+      const p = progress(this.state!);
+      const name = this.state!.clientName ? `${this.state!.clientName}, ${this.state!.title}` : this.state!.title;
+      await sendMail(
+        this.env,
+        briefSentMail({ to, origin: meta.origin, briefId: this.name, briefName: name, settled: p.answered + p.unknown, total: p.total, open }),
+      );
+    } catch (error) {
+      console.error("Nie udało się wysłać powiadomienia o briefie", error);
+    }
   }
 
   // --- Struktura (tylko agencja) ---
