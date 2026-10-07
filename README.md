@@ -12,7 +12,7 @@ cp .dev.vars.example .dev.vars   # wpisz GEMINI_API_KEY (Google AI Studio), żeb
 pnpm dev
 ```
 
-Lokalnie maile nie wychodzą: kod logowania widać w terminalu (`[dev] Kod logowania…`) i w podpowiedzi pod polem kodu. Bez klucza Gemini działa wszystko poza poleceniami AI.
+Lokalnie nie trzeba się logować: aplikacja od razu wchodzi na konto deweloperskie (`dev@designhouse.me`, zmiana przez `DEV_EMAIL` w `.dev.vars`). Ta ścieżka nie trafia do buildu produkcyjnego. Bez klucza Gemini działa wszystko poza poleceniami AI.
 
 ## Wdrożenie
 

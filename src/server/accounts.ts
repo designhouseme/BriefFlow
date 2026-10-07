@@ -79,6 +79,11 @@ export class AccountStore extends DurableObject<Env> {
     return row?.value ?? null;
   }
 
+  /** Konto bez logowania kodem (tylko tryb dev). */
+  ensureEmail(email: string) {
+    this.sql.exec(`INSERT OR IGNORE INTO profile (key, value) VALUES ('email', ?)`, email);
+  }
+
   // --- Logowanie kodem ---
 
   async requestCode(email: string): Promise<CodeRequest> {

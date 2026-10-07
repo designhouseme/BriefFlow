@@ -1,2 +1,5 @@
 # Skopiuj do .dev.vars i wpisz klucz. Bez klucza aplikacja działa, tylko okno poleceń AI jest wyłączone.
 GEMINI_API_KEY=
+
+# Lokalnie aplikacja loguje się sama, bez maila i kodu. Tu możesz zmienić adres konta deweloperskiego.
+# DEV_EMAIL=dev@designhouse.me

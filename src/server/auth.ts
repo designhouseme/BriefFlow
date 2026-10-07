@@ -56,10 +56,22 @@ export interface Session {
 
 export async function getSession(request: Request, env: Env): Promise<Session | null> {
   const cookie = readCookie(request);
-  if (!cookie) return null;
-  const account = accountStub(env, cookie.key);
-  const email = await account.sessionEmail(cookie.session);
-  return email ? { key: cookie.key, email, account } : null;
+  if (cookie) {
+    const account = accountStub(env, cookie.key);
+    const email = await account.sessionEmail(cookie.session);
+    if (email) return { key: cookie.key, email, account };
+  }
+  // Lokalnie bez maila i kodu: od razu konto deweloperskie. W buildzie produkcyjnym ta gałąź znika.
+  if (import.meta.env.DEV) return devSession(env);
+  return null;
+}
+
+async function devSession(env: Env): Promise<Session> {
+  const email = normalizeEmail(env.DEV_EMAIL) ?? "dev@designhouse.me";
+  const key = await accountKey(email);
+  const account = accountStub(env, key);
+  await account.ensureEmail(email);
+  return { key, email, account };
 }
 
 function codeEmail(code: string) {
