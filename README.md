@@ -1,11 +1,8 @@
 # DH Briefing
 
-Brief z klientem bez formularzy do wypisywania. Agencja tworzy brief jednym kliknięciem i dostaje dwa linki:
+Brief z klientem bez formularzy do wypisywania. Strona startowa prowadzi od razu do aplikacji: osoba z agencji podaje adres firmowy, wpisuje 6 cyfr z maila i tworzy briefy. Każdy brief ma **link dla klienta**: klient klika odpowiedzi, może dać „Nie wiem” albo „Pomiń na razie” i wrócić później, bez zakładania konta.
 
-- **link agencji**: edycja pytań, polecenia dla AI, historia zmian, cofanie,
-- **link klienta**: klient klika odpowiedzi, może dać „Nie wiem” albo „Pomiń na razie” i wrócić później.
-
-Obie strony widzą zmiany na żywo, więc brief można wypełniać razem na spotkaniu albo wysłać klientowi.
+Agencja i klient widzą zmiany na żywo, więc brief można wypełniać razem na spotkaniu albo wysłać klientowi.
 
 ## Uruchomienie
 
@@ -15,34 +12,47 @@ cp .dev.vars.example .dev.vars   # wpisz GEMINI_API_KEY (Google AI Studio), żeb
 pnpm dev
 ```
 
-Bez klucza działa wszystko poza oknem poleceń AI.
+Lokalnie maile nie wychodzą: kod logowania widać w terminalu (`[dev] Kod logowania…`) i w podpowiedzi pod polem kodu. Bez klucza Gemini działa wszystko poza poleceniami AI.
 
 ## Wdrożenie
 
 ```bash
+pnpm exec wrangler email sending enable designhouse.me   # raz: domena nadawcy kodów
 pnpm exec wrangler secret put GEMINI_API_KEY
 pnpm run deploy
 ```
 
-Na produkcji briefy są przechowywane w UE (jurysdykcja Durable Objects `eu`). Lokalnie ta opcja jest wyłączona, bo lokalny runtime jej nie obsługuje.
+- Nadawca kodów to `EMAIL_FROM` w `wrangler.jsonc` (domyślnie `brief@designhouse.me`); jego domena musi być włączona w Cloudflare Email Service.
+- Zalogować się mogą tylko adresy z domen w `ALLOWED_EMAIL_DOMAINS` (domyślnie `designhouse.me`, kilka po przecinku, pusto = każdy).
+- Na produkcji briefy i konta są przechowywane w UE (jurysdykcja Durable Objects `eu`). Lokalnie ta opcja jest wyłączona, bo lokalny runtime jej nie obsługuje.
 
 ## Jak to działa
 
-- Jeden brief = jedna instancja Agenta (Cloudflare Agents SDK, Durable Object z SQLite). Stan briefu synchronizuje się przez WebSocket do wszystkich otwartych linków.
-- Rola wynika z tokenu w linku. Tokeny leżą w SQL Agenta, nie w stanie, więc klient nie widzi linku agencji. Przeglądarka nie może nadpisać stanu: wszystkie zmiany idą przez metody `@callable` ze sprawdzeniem roli.
+- Logowanie: `POST /api/auth/start` wysyła 6-cyfrowy kod (ważny 10 minut, 5 prób, nowy najwcześniej po 30 s, najwyżej 5 na godzinę), `POST /api/auth/verify` ustawia ciasteczko sesji (`HttpOnly`, `SameSite=Lax`, 30 dni).
+- Jedno konto = jedna instancja `AccountStore` (Durable Object z SQLite, nazwana skrótem adresu). Trzyma skróty kodów i sesji oraz listę briefów tej osoby.
+- Jeden brief = jedna instancja Agenta (Cloudflare Agents SDK, Durable Object z SQLite). Stan briefu synchronizuje się przez WebSocket do wszystkich otwartych widoków. Każda zmiana stanu odświeża też wiersz briefu na koncie właściciela (tytuł, postęp, wysyłka).
+- Rola wynika z tokenu. Klient ma token w linku. Agencja łączy się bez tokenu: Worker sprawdza sesję i własny origin, a token agencji dokleja po stronie serwera, więc nie trafia on do przeglądarki. Przeglądarka nie może nadpisać stanu: wszystkie zmiany idą przez metody `@callable` ze sprawdzeniem roli.
 - Struktura briefu (sekcje → pola) jest zmieniana tylko przez funkcje z `src/shared/ops.ts`. Z tych samych funkcji korzysta edycja ręczna i AI.
-- AI (`src/server/ai.ts`) dostaje opis briefu i polecenie agencji, a zmiany robi narzędziami (`add_field`, `update_field`, `move_field`, `add_section`…). Pola tekstowe wymagają uzasadnienia, bo domyślnie AI tworzy pytania do klikania. Każde polecenie AI to jeden krok do cofnięcia.
+- AI (`src/server/ai.ts`) dostaje opis briefu i polecenie agencji, a zmiany robi narzędziami (`add_field`, `update_field`, `move_field`, `add_section`…). Pola tekstowe wymagają uzasadnienia: domyślnie AI tworzy pytania do klikania. Każde polecenie AI to jeden krok do cofnięcia.
 
 ## Struktura
 
 ```
-src/shared/types.ts       typy briefu, katalog typów pól
-src/shared/ops.ts         operacje na strukturze, widoczność warunkowa, postęp
-src/shared/templates.ts   szablony („Strona WWW”, pusty)
-src/server/index.ts       Worker: tworzenie briefu, sprawdzenie linku, routing do Agenta
-src/server/brief-agent.ts Agent briefu: role, odpowiedzi, edycja, cofanie, historia, AI
-src/server/ai.ts          narzędzia i pętla poleceń AI
-src/client/               React: strona startowa i widok briefu
+src/shared/types.ts        typy briefu, katalog typów pól
+src/shared/ops.ts          operacje na strukturze, widoczność warunkowa, postęp
+src/shared/templates.ts    szablony („Strona WWW”, pusty)
+src/shared/account.ts      lista briefów na koncie agencji
+src/server/index.ts        Worker: logowanie, lista i tworzenie briefów, dostęp, routing do Agenta
+src/server/auth.ts         kody z maila, sesja w ciasteczku
+src/server/accounts.ts     AccountStore: kody, sesje, briefy jednej osoby
+src/server/brief-agent.ts  Agent briefu: role, odpowiedzi, edycja, cofanie, historia, AI
+src/server/ai.ts           narzędzia i pętla poleceń AI
+src/client/Landing.tsx     strona startowa z logowaniem
+src/client/AppShell.tsx    aplikacja agencji: pasek ikon, lista briefów, panel
+src/client/Home.tsx        nowy brief
+src/client/BriefPage.tsx   brief w aplikacji (agencja) i pod linkiem klienta
+src/client/ClientFlow.tsx  rozmowa klienta i „Twój brief”
+public/brand/              znak (orb) i grafika do podglądu linku
 ```
 
 ## Znane ograniczenia (MVP)
@@ -50,4 +60,5 @@ src/client/               React: strona startowa i widok briefu
 - Ręczne zmiany pytań zrobione w trakcie działania polecenia AI zostaną nadpisane wynikiem AI.
 - Pliki (logo, zdjęcia) nie są jeszcze wgrywane: pole „Materiał” zbiera status i link.
 - Brak przypomnień mailowych i wykrywania luk przez AI.
-- Kto zgubi link agencji, traci dostęp do edycji briefu.
+- Brief widzi tylko osoba, która go utworzyła. Wspólnych briefów zespołu jeszcze nie ma.
+- Limit kodów jest liczony na adres, nie na IP.

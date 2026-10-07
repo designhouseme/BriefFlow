@@ -2,20 +2,21 @@ import {
   IconAlertCircle,
   IconAlertTriangle,
   IconArrowBackUp,
+  IconArrowUp,
   IconCheck,
   IconCopy,
   IconExternalLink,
   IconHistory,
-  IconLink,
   IconListCheck,
+  IconPencil,
   IconPlus,
   IconReceipt,
+  IconShare2,
   IconTrash,
-  IconUserShare,
   IconWand,
   IconX,
 } from "@tabler/icons-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { baseStatus, type Flag, quoteItems, redFlags } from "../shared/checks";
 import { openQuestions } from "../shared/flow";
 import { isSectionVisible, progress } from "../shared/ops";
@@ -30,152 +31,283 @@ import {
   type LogEntry,
   type Section,
 } from "../shared/types";
-import { briefUrl, checkAccess } from "./api";
+import { checkAccess, clientUrl } from "./api";
+import { briefName, MainHead, useApp } from "./AppShell";
 import { ClientFlow } from "./ClientFlow";
 import { type BriefStub, type Run, useBriefAgent } from "./connection";
 import { conditionText, FieldCard } from "./FieldCard";
 import { FIELD_TYPE_ICON, sectionIcon, toneOf } from "./icons";
-import { percent, Progress, Shell } from "./Shell";
+import { Orb } from "./Orb";
+import { ClientShell, percent } from "./Shell";
+import { Popover, useCopy } from "./ui";
 
-export function BriefPage({ id, token }: { id: string; token: string }) {
+// --- Agencja: brief w aplikacji (wejście z sesji, bez tokenu w adresie) ---
+
+export function AgencyBrief({ id, search }: { id: string; search: string }) {
   const [access, setAccess] = useState<AccessInfo | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    checkAccess(id, token).then(setAccess, (e: Error) => setError(e.message));
-  }, [id, token]);
+    setAccess(null);
+    setError("");
+    checkAccess(id).then(setAccess, (e: Error) => setError(e.message));
+  }, [id]);
 
   if (error) {
     return (
-      <Shell title="DH Briefing">
-        <main className="page narrow">
-          <span className="page-icon tone-4" aria-hidden>
-            <IconAlertCircle size={26} stroke={1.75} />
-          </span>
-          <h1 className="page-title">Nie można otworzyć briefu</h1>
-          <p className="lede">{error} Poproś osobę, która przysłała link, o nowy.</p>
-        </main>
-      </Shell>
+      <>
+        <MainHead title="Brief" />
+        <div className="panel">
+          <div className="empty">
+            <span className="empty-icon tone-4" aria-hidden>
+              <IconAlertCircle size={26} stroke={1.75} />
+            </span>
+            <h2>Nie można otworzyć briefu</h2>
+            <p>{error}</p>
+          </div>
+        </div>
+      </>
     );
   }
-  if (!access) return <Loading />;
-  return <ConnectedBrief id={id} token={token} access={access} />;
+  if (!access) return <PanelLoading />;
+  return <ConnectedAgency id={id} aiEnabled={access.aiEnabled} isNew={new URLSearchParams(search).has("new")} />;
 }
 
-function Loading() {
+function PanelLoading() {
   return (
-    <Shell title="DH Briefing">
-      <main className="page narrow">
-        <p className="muted">Wczytuję brief…</p>
-      </main>
-    </Shell>
-  );
-}
-
-function ConnectedBrief({ id, token, access }: { id: string; token: string; access: AccessInfo }) {
-  const agent = useBriefAgent(id, token);
-  const brief = agent.state;
-  const [toast, setToast] = useState("");
-
-  const run: Run = useCallback(async (action) => {
-    try {
-      return await action();
-    } catch (e) {
-      setToast((e as Error).message);
-      return undefined;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(""), 4000);
-    return () => clearTimeout(timer);
-  }, [toast]);
-
-  if (!brief) return <Loading />;
-  const isClient = access.role === "client";
-  const p = progress(brief);
-
-  return (
-    <Shell
-      title={brief.title}
-      subtitle={brief.clientName || undefined}
-      right={<Progress value={percent(p.answered + p.unknown, p.total)} label={isClient ? undefined : "Widok agencji"} />}
-      home={!isClient}
-      fill={isClient}
-    >
-      {isClient ? (
-        <ClientFlow brief={brief} stub={agent.stub} notify={setToast} />
-      ) : (
-        <AgencyView id={id} token={token} brief={brief} stub={agent.stub} run={run} aiEnabled={access.aiEnabled} />
-      )}
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
+    <>
+      <MainHead title="Wczytuję…" />
+      <div className="panel">
+        <div className="empty">
+          <Orb size={44} className="pulse-soft" />
+          <p>Wczytuję brief…</p>
         </div>
-      )}
-    </Shell>
+      </div>
+    </>
   );
 }
 
-// --- Widok agencji: pełna lista do edycji ---
+function briefStatus(brief: Brief): { label: string; tone: string } {
+  if (brief.completedAt) return { label: "Wysłany", tone: "badge-green" };
+  if (Object.values(brief.answers).some((a) => a.by === "client")) return { label: "Klient odpowiada", tone: "badge-blue" };
+  return { label: "Szkic", tone: "" };
+}
 
-function AgencyView({
-  id,
-  token,
-  brief,
-  stub,
-  run,
-  aiEnabled,
-}: {
-  id: string;
-  token: string;
-  brief: Brief;
-  stub: BriefStub;
-  run: Run;
-  aiEnabled: boolean;
-}) {
+function ConnectedAgency({ id, aiEnabled, isNew }: { id: string; aiEnabled: boolean; isNew: boolean }) {
+  const { notify, patchBrief } = useApp();
+  const agent = useBriefAgent(id);
+  const brief = agent.state;
   const [editing, setEditing] = useState<string | null>(null);
-  const p = progress(brief);
-  const open = openQuestions(brief).length;
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const run: Run = useCallback(
+    async (action) => {
+      try {
+        return await action();
+      } catch (e) {
+        notify((e as Error).message);
+        return undefined;
+      }
+    },
+    [notify],
+  );
+
+  // Zmiany na żywo (odpowiedzi klienta, nazwa) od razu w liście po lewej.
+  useEffect(() => {
+    if (!brief) return;
+    const p = progress(brief);
+    patchBrief(id, {
+      title: brief.title,
+      clientName: brief.clientName,
+      settled: p.answered + p.unknown,
+      total: p.total,
+      completedAt: brief.completedAt,
+      updatedAt: brief.updatedAt,
+    });
+  }, [brief, id, patchBrief]);
+
+  // Pasek adresu bez ?new=1: to on trafia do zakładek.
+  useEffect(() => {
+    if (isNew) history.replaceState(null, "", `/app/b/${id}`);
+  }, [isNew, id]);
+
+  if (!brief) return <PanelLoading />;
+  const status = briefStatus(brief);
   const flags = redFlags(brief);
 
   return (
-    <div className="agency">
-      <main className="page">
-        <div className="agency-head">
-          <h1 className="page-title">{brief.title}</h1>
-          <p className="agency-status">
-            {p.answered + p.unknown} z {p.total} odpowiedzi
-            {p.skipped > 0 && `, ${p.skipped} pominięte`}
-            {brief.completedAt
-              ? `. Klient wysłał brief ${new Date(brief.completedAt).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}${open ? `, ${open} do uzupełnienia` : ""}.`
-              : "."}
-          </p>
+    <>
+      <MainHead
+        title={briefName(brief)}
+        titleAction={<MetaEditor brief={brief} stub={agent.stub} run={run} />}
+        badge={<span className={`badge ${status.tone}`}>{status.label}</span>}
+        actions={
+          <>
+            <button className="btn" onClick={() => setHistoryOpen(true)}>
+              <IconHistory size={17} aria-hidden /> <span className="hide-sm">Historia</span>
+            </button>
+            <SharePopover id={id} stub={agent.stub} />
+          </>
+        }
+      />
+      <div className="panel">
+        <div className="panel-scroll">
+          <div className="editor-page">
+            {isNew && <NewBriefNote id={id} stub={agent.stub} />}
+            <Overview brief={brief} />
+            <Checks brief={brief} flags={flags} />
+            {brief.sections.map((section, index) => (
+              <SectionBlock
+                key={section.id}
+                index={index}
+                flags={flags}
+                brief={brief}
+                section={section}
+                stub={agent.stub}
+                run={run}
+                editing={editing}
+                setEditing={setEditing}
+              />
+            ))}
+            <AddSection stub={agent.stub} run={run} />
+          </div>
         </div>
+        <AiDock brief={brief} stub={agent.stub} run={run} aiEnabled={aiEnabled} />
+        {historyOpen && <HistorySheet stub={agent.stub} updatedAt={brief.updatedAt} onClose={() => setHistoryOpen(false)} />}
+      </div>
+    </>
+  );
+}
 
-        <SharePanel id={id} agencyToken={token} stub={stub} />
-        <Checks brief={brief} flags={flags} />
+/** Nazwa briefu i klienta: zmiana w małym panelu przy tytule. */
+function MetaEditor({ brief, stub, run }: { brief: Brief; stub: BriefStub; run: Run }) {
+  return (
+    <Popover trigger={<IconPencil size={16} />} triggerClass="icon-btn" label="Zmień nazwę briefu" align="start">
+      {(close) => <MetaForm brief={brief} stub={stub} run={run} onDone={close} />}
+    </Popover>
+  );
+}
 
-        {brief.sections.map((section, index) => (
-          <SectionBlock
-            key={section.id}
-            index={index}
-            flags={flags}
-            brief={brief}
-            section={section}
-            stub={stub}
-            run={run}
-            editing={editing}
-            setEditing={setEditing}
-          />
-        ))}
+function MetaForm({ brief, stub, run, onDone }: { brief: Brief; stub: BriefStub; run: Run; onDone: () => void }) {
+  const [title, setTitle] = useState(brief.title);
+  const [clientName, setClientName] = useState(brief.clientName);
+  return (
+    <form
+      className="pop-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        await run(() => stub.updateMeta({ title, clientName }));
+        onDone();
+      }}
+    >
+      <label className="label">
+        Klient
+        <input className="input" value={clientName} onChange={(e) => setClientName(e.target.value)} maxLength={120} autoFocus />
+      </label>
+      <label className="label">
+        Nazwa briefu
+        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+      </label>
+      <div className="row">
+        <button className="btn btn-primary">
+          <IconCheck size={16} aria-hidden /> Zapisz
+        </button>
+        <button type="button" className="btn btn-quiet" onClick={onDone}>
+          Anuluj
+        </button>
+      </div>
+    </form>
+  );
+}
 
-        <AddSection stub={stub} run={run} />
-        <History stub={stub} updatedAt={brief.updatedAt} />
-      </main>
-      <AiBar brief={brief} stub={stub} run={run} aiEnabled={aiEnabled} />
+function useClientLink(id: string, stub: BriefStub) {
+  const [token, setToken] = useState("");
+  useEffect(() => {
+    stub.getClientToken().then(setToken, () => {});
+  }, [stub]);
+  return token ? clientUrl(id, token) : "";
+}
+
+function SharePopover({ id, stub }: { id: string; stub: BriefStub }) {
+  return (
+    <Popover
+      trigger={
+        <>
+          <IconShare2 size={17} aria-hidden /> <span className="hide-sm">Udostępnij</span>
+        </>
+      }
+      label="Udostępnij klientowi"
+    >
+      {() => <ShareBody id={id} stub={stub} />}
+    </Popover>
+  );
+}
+
+function ShareBody({ id, stub }: { id: string; stub: BriefStub }) {
+  const url = useClientLink(id, stub);
+  const { copied, copy } = useCopy();
+  return (
+    <div className="share">
+      <p className="share-title">Link dla klienta</p>
+      <p className="share-text">Klient otwiera go bez logowania i może wracać tym samym linkiem.</p>
+      <input className="input" readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Link dla klienta" />
+      <div className="row">
+        <button className="btn btn-primary" onClick={() => copy(url)} disabled={!url}>
+          {copied ? <IconCheck size={16} aria-hidden /> : <IconCopy size={16} aria-hidden />}
+          {copied ? "Skopiowano" : "Kopiuj link"}
+        </button>
+        {url && (
+          <a className="btn" href={url} target="_blank" rel="noreferrer">
+            <IconExternalLink size={16} aria-hidden /> Otwórz jako klient
+          </a>
+        )}
+      </div>
     </div>
+  );
+}
+
+function NewBriefNote({ id, stub }: { id: string; stub: BriefStub }) {
+  const url = useClientLink(id, stub);
+  const { copied, copy } = useCopy();
+  return (
+    <section className="note-card" aria-label="Brief gotowy">
+      <span className="note-icon" aria-hidden>
+        <IconCheck size={18} stroke={2.5} />
+      </span>
+      <div className="note-text">
+        <strong>Brief gotowy.</strong> Sprawdź pytania i wyślij klientowi link.
+      </div>
+      <button className="btn btn-primary" onClick={() => copy(url)} disabled={!url}>
+        {copied ? <IconCheck size={16} aria-hidden /> : <IconCopy size={16} aria-hidden />}
+        {copied ? "Skopiowano" : "Kopiuj link dla klienta"}
+      </button>
+    </section>
+  );
+}
+
+function Overview({ brief }: { brief: Brief }) {
+  const p = progress(brief);
+  const open = openQuestions(brief).length;
+  const settled = p.answered + p.unknown;
+  const sent = brief.completedAt
+    ? `Klient wysłał brief ${new Date(brief.completedAt).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}${open ? `, ${open} do uzupełnienia.` : "."}`
+    : open
+      ? `${open} pytań jeszcze otwartych.`
+      : "Wszystko uzupełnione.";
+  return (
+    <section className="overview" aria-label="Postęp">
+      <div className="overview-num">
+        <strong>{percent(settled, p.total)}%</strong>
+        <span>
+          {settled} z {p.total} odpowiedzi
+          {p.skipped > 0 && `, ${p.skipped} pominięte`}
+        </span>
+      </div>
+      <span className="meter meter-wide" aria-hidden>
+        <span style={{ width: `${percent(settled, p.total)}%` }} />
+      </span>
+      <p className="overview-note">{sent}</p>
+    </section>
   );
 }
 
@@ -191,7 +323,7 @@ function Checks({ brief, flags }: { brief: Brief; flags: Flag[] }) {
       <div className="check-card">
         <div className="check-head">
           <span className={`check-icon ${base.missing.length ? "tone-1" : "tone-3"}`} aria-hidden>
-            {base.missing.length ? <IconListCheck size={20} stroke={1.9} /> : <IconCheck size={20} stroke={2.4} />}
+            {base.missing.length ? <IconListCheck size={19} stroke={1.9} /> : <IconCheck size={19} stroke={2.4} />}
           </span>
           <h2>Baza</h2>
           <span className="check-count">
@@ -216,7 +348,7 @@ function Checks({ brief, flags }: { brief: Brief; flags: Flag[] }) {
       <div className="check-card">
         <div className="check-head">
           <span className={`check-icon ${flags.length ? "tone-4" : "tone-3"}`} aria-hidden>
-            <IconAlertTriangle size={20} stroke={1.9} />
+            <IconAlertTriangle size={19} stroke={1.9} />
           </span>
           <h2>Do uwagi</h2>
           <span className="check-count">{flags.length}</span>
@@ -240,7 +372,7 @@ function Checks({ brief, flags }: { brief: Brief; flags: Flag[] }) {
       <div className="check-card">
         <div className="check-head">
           <span className="check-icon tone-2" aria-hidden>
-            <IconReceipt size={20} stroke={1.9} />
+            <IconReceipt size={19} stroke={1.9} />
           </span>
           <h2>Do wyceny</h2>
           <span className="check-count">{quotes.length}</span>
@@ -263,82 +395,6 @@ function Checks({ brief, flags }: { brief: Brief; flags: Flag[] }) {
         )}
       </div>
     </section>
-  );
-}
-
-function SharePanel({ id, agencyToken, stub }: { id: string; agencyToken: string; stub: BriefStub }) {
-  const [clientToken, setClientToken] = useState("");
-  const [isNew] = useState(() => new URLSearchParams(location.search).has("new"));
-
-  useEffect(() => {
-    // Pasek adresu ma pokazywać czysty link, bo to on zwykle trafia do zakładek.
-    if (isNew) history.replaceState(null, "", `${location.pathname}?k=${agencyToken}`);
-  }, [isNew, agencyToken]);
-
-  useEffect(() => {
-    stub.getClientToken().then(setClientToken, () => {});
-  }, [stub]);
-
-  const clientUrl = clientToken ? briefUrl(id, clientToken) : "";
-
-  return (
-    <section className={`share ${isNew ? "is-new" : ""}`} aria-label="Linki">
-      {isNew && (
-        <p className="share-note">
-          <IconCheck size={18} stroke={2.5} aria-hidden /> Brief gotowy. Zapisz swój link: to jedyny dostęp do edycji tego
-          briefu.
-        </p>
-      )}
-      <CopyRow icon={<IconUserShare size={18} />} label="Link dla klienta" value={clientUrl}>
-        {clientUrl && (
-          <a className="btn btn-quiet" href={clientUrl} target="_blank" rel="noreferrer">
-            <IconExternalLink size={16} aria-hidden /> Zobacz jak klient
-          </a>
-        )}
-      </CopyRow>
-      <CopyRow icon={<IconLink size={18} />} label="Twój link (edycja)" value={briefUrl(id, agencyToken)} />
-    </section>
-  );
-}
-
-function CopyRow({
-  icon,
-  label,
-  value,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  children?: React.ReactNode;
-}) {
-  const [copied, setCopied] = useState(false);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* schowek niedostępny: link da się zaznaczyć ręcznie */
-    }
-  }
-  return (
-    <div className="copy-row">
-      <span className="copy-label">
-        <span className="copy-icon" aria-hidden>
-          {icon}
-        </span>
-        {label}
-      </span>
-      <input className="input copy-input" readOnly value={value} onFocus={(e) => e.currentTarget.select()} aria-label={label} />
-      <div className="copy-actions">
-        <button className="btn" onClick={copy} disabled={!value}>
-          {copied ? <IconCheck size={16} aria-hidden /> : <IconCopy size={16} aria-hidden />}
-          {copied ? "Skopiowano" : "Kopiuj"}
-        </button>
-        {children}
-      </div>
-    </div>
   );
 }
 
@@ -374,7 +430,7 @@ function SectionBlock({
           className="link-btn danger"
           onClick={() => confirm(`Usunąć sekcję „${section.title}” razem z pytaniami?`) && run(() => stub.removeSection(section.id))}
         >
-          <IconTrash size={15} aria-hidden /> Usuń sekcję
+          <IconTrash size={15} aria-hidden /> <span className="hide-sm">Usuń sekcję</span>
         </button>
       </div>
       {section.description && <p className="section-desc">{section.description}</p>}
@@ -393,7 +449,7 @@ function SectionBlock({
           flags={flags.filter((f) => f.fieldId === field.id)}
         />
       ))}
-      {section.fields.length === 0 && <p className="muted small">Sekcja jest pusta.</p>}
+      {section.fields.length === 0 && <p className="section-empty">Sekcja jest pusta.</p>}
       <AddField section={section} stub={stub} run={run} onCreated={setEditing} />
     </section>
   );
@@ -500,33 +556,50 @@ function AddSection({ stub, run }: { stub: BriefStub; run: Run }) {
 
 const ACTOR: Record<LogEntry["actor"], string> = { agency: "Agencja", client: "Klient", ai: "AI" };
 
-function History({ stub, updatedAt }: { stub: BriefStub; updatedAt: number }) {
-  const [open, setOpen] = useState(false);
-  const [entries, setEntries] = useState<LogEntry[]>([]);
+function HistorySheet({ stub, updatedAt, onClose }: { stub: BriefStub; updatedAt: number; onClose: () => void }) {
+  const [entries, setEntries] = useState<LogEntry[] | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (open) stub.getLog().then(setEntries, () => {});
-  }, [open, updatedAt, stub]);
+    stub.getLog().then(setEntries, () => setEntries([]));
+  }, [updatedAt, stub]);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
-    <details className="history" onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>
-        <IconHistory size={18} aria-hidden /> Historia zmian
-      </summary>
-      <ol>
-        {entries.map((entry, i) => (
-          <li key={i}>
-            <time>{new Date(entry.at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time>
-            <span className="who">{ACTOR[entry.actor]}</span>
-            <span>{entry.text}</span>
-          </li>
-        ))}
-      </ol>
-    </details>
+    <aside className="sheet" aria-label="Historia zmian">
+      <div className="sheet-head">
+        <h2>Historia zmian</h2>
+        <button className="icon-btn" ref={closeRef} onClick={onClose} aria-label="Zamknij historię">
+          <IconX size={18} />
+        </button>
+      </div>
+      {entries === null ? (
+        <p className="sheet-empty">Wczytuję…</p>
+      ) : entries.length === 0 ? (
+        <p className="sheet-empty">Jeszcze nic się nie wydarzyło.</p>
+      ) : (
+        <ol className="log">
+          {entries.map((entry, i) => (
+            <li key={i}>
+              <span className={`log-who is-${entry.actor}`}>{ACTOR[entry.actor]}</span>
+              <span className="log-text">{entry.text}</span>
+              <time>{new Date(entry.at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time>
+            </li>
+          ))}
+        </ol>
+      )}
+    </aside>
   );
 }
 
-function AiBar({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub; run: Run; aiEnabled: boolean }) {
+/** Polecenie dla AI jak pole czatu na dole panelu. Cofnij działa także dla zmian ręcznych. */
+function AiDock({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub; run: Run; aiEnabled: boolean }) {
   const [command, setCommand] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AiResult | null>(null);
@@ -545,30 +618,27 @@ function AiBar({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub;
   }
 
   return (
-    <div className="ai-bar">
-      <div className="ai-inner">
-        {result && (
-          <div className={`ai-result ${result.ok ? "" : "is-error"}`} role="status">
-            <p>{result.summary}</p>
-            {result.changes.length > 0 && (
-              <ul>
-                {result.changes.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            )}
-            <button className="link-btn" onClick={() => setResult(null)}>
-              Zamknij
-            </button>
-          </div>
-        )}
-        <form className="ai-form" onSubmit={submit}>
-          <span className="ai-icon" aria-hidden>
-            <IconWand size={19} stroke={1.9} />
-          </span>
+    <form className="dock" onSubmit={submit}>
+      {result && (
+        <div className={`ai-result ${result.ok ? "" : "is-error"}`} role="status">
+          <p>{result.summary}</p>
+          {result.changes.length > 0 && (
+            <ul>
+              {result.changes.map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          )}
+          <button type="button" className="icon-btn ai-result-close" onClick={() => setResult(null)} aria-label="Zamknij">
+            <IconX size={16} />
+          </button>
+        </div>
+      )}
+      <div className={`composer-box ${busy ? "is-busy" : ""}`}>
+        <label className="composer-line">
+          <IconWand size={18} className="composer-lead" aria-hidden />
+          <span className="visually-hidden">Polecenie dla AI</span>
           <input
-            className="input ai-input"
-            aria-label="Polecenie dla AI"
             placeholder={
               aiEnabled
                 ? "Napisz, co dodać lub zmienić, np. „dodaj pytania o wysyłkę za granicę”"
@@ -579,9 +649,8 @@ function AiBar({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub;
             disabled={!aiEnabled || busy}
             maxLength={1000}
           />
-          <button className="btn btn-primary" disabled={!aiEnabled || busy || !command.trim()}>
-            {busy ? "AI pracuje…" : "Wykonaj"}
-          </button>
+        </label>
+        <div className="composer-bar">
           <button
             type="button"
             className="btn"
@@ -589,10 +658,95 @@ function AiBar({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub;
             onClick={() => run(() => stub.undo())}
             title="Cofa ostatnią zmianę pytań (ręczną albo AI)"
           >
-            <IconArrowBackUp size={16} aria-hidden /> Cofnij
+            <IconArrowBackUp size={17} aria-hidden /> Cofnij
           </button>
-        </form>
+          <button className="btn btn-primary" disabled={!aiEnabled || busy || !command.trim()}>
+            <IconArrowUp size={17} stroke={2.2} aria-hidden /> {busy ? "AI pracuje…" : "Wykonaj"}
+          </button>
+        </div>
       </div>
-    </div>
+      <p className="dock-note">AI zmienia tylko pytania, nie odpowiedzi. Każde polecenie możesz cofnąć.</p>
+    </form>
+  );
+}
+
+// --- Klient: publiczny link z tokenem ---
+
+export function ClientBriefPage({ id, token }: { id: string; token: string }) {
+  const [access, setAccess] = useState<AccessInfo | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!token) {
+      setError("W linku brakuje klucza.");
+      return;
+    }
+    checkAccess(id, token).then(setAccess, (e: Error) => setError(e.message));
+  }, [id, token]);
+
+  if (error) {
+    return (
+      <ClientShell>
+        <div className="empty">
+          <span className="empty-icon tone-4" aria-hidden>
+            <IconAlertCircle size={26} stroke={1.75} />
+          </span>
+          <h2>Nie można otworzyć briefu</h2>
+          <p>{error} Poproś osobę, która przysłała link, o nowy.</p>
+        </div>
+      </ClientShell>
+    );
+  }
+  if (!access) return <ClientLoading />;
+  if (access.role === "agency") {
+    return (
+      <ClientShell>
+        <div className="empty">
+          <Orb size={56} />
+          <h2>To link do edycji briefu</h2>
+          <p>Briefy edytujesz teraz w aplikacji DH Briefing, po zalogowaniu adresem firmowym.</p>
+          <a className="btn btn-primary" href="/app">
+            Otwórz aplikację
+          </a>
+        </div>
+      </ClientShell>
+    );
+  }
+  return <ConnectedClient id={id} token={token} />;
+}
+
+function ClientLoading() {
+  return (
+    <ClientShell>
+      <div className="empty">
+        <Orb size={44} className="pulse-soft" />
+        <p>Wczytuję brief…</p>
+      </div>
+    </ClientShell>
+  );
+}
+
+function ConnectedClient({ id, token }: { id: string; token: string }) {
+  const agent = useBriefAgent(id, token);
+  const brief = agent.state;
+  const [toast, setToast] = useState("");
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(""), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  if (!brief) return <ClientLoading />;
+  const p = progress(brief);
+  return (
+    <ClientShell title={brief.title} subtitle={brief.clientName || undefined} value={percent(p.answered + p.unknown, p.total)}>
+      <ClientFlow brief={brief} stub={agent.stub} notify={setToast} />
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
+    </ClientShell>
   );
 }

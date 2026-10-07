@@ -31,6 +31,7 @@ import { describeAnswer, needsText, optionsOf, progress } from "../shared/ops";
 import type { Answer, AnswerInput, Brief, Field, Option } from "../shared/types";
 import type { BriefStub } from "./connection";
 import { answerIcon, optionIcon, sectionIcon, toneOf } from "./icons";
+import { Orb } from "./Orb";
 import { percent } from "./Shell";
 
 // Klient przechodzi brief jak rozmowę: pytanie w dymku, pod nim kafle z ikonami do kliknięcia
@@ -176,9 +177,7 @@ function Welcome({ count, onStart }: { count: number; onStart: () => void }) {
   return (
     <main className="welcome">
       <div className="welcome-inner">
-        <span className="welcome-icon" aria-hidden>
-          <IconMessageCircle size={30} stroke={1.75} />
-        </span>
+        <Orb size={76} className="welcome-orb" />
         <h1 className="welcome-title">Opowiedz nam o projekcie</h1>
         <p className="welcome-lead">Zamiast formularza krótka rozmowa, w której głównie klikasz.</p>
         <ol className="how">
@@ -294,9 +293,7 @@ function Thread({
 function Bot({ children, fresh, id }: { children: React.ReactNode; fresh?: boolean; id?: string }) {
   return (
     <div className={`bot ${fresh ? "is-fresh" : ""}`}>
-      <span className="avatar" aria-hidden>
-        DH
-      </span>
+      <Orb size={32} className="avatar-orb" />
       <div className="bubble bubble-bot" id={id}>
         {children}
       </div>

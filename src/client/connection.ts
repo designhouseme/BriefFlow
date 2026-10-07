@@ -2,8 +2,9 @@ import { useAgent } from "agents/react";
 import type { BriefAgent } from "../server/brief-agent";
 import type { Brief } from "../shared/types";
 
-export function useBriefAgent(id: string, token: string) {
-  return useAgent<BriefAgent, Brief | null>({ agent: "BriefAgent", name: id, query: { k: token } });
+/** Klient łączy się tokenem z linku. Agencja bez tokenu: Worker rozpoznaje ją po sesji. */
+export function useBriefAgent(id: string, token?: string) {
+  return useAgent<BriefAgent, Brief | null>({ agent: "BriefAgent", name: id, query: token ? { k: token } : undefined });
 }
 
 export type BriefConnection = ReturnType<typeof useBriefAgent>;

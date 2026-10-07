@@ -1,43 +1,32 @@
 import type { ReactNode } from "react";
+import { Orb } from "./Orb";
 
 /**
- * Górny pasek: nazwa briefu i klient z lewej, stan z prawej.
- * `fill` przypina stronę do wysokości okna (rozmowa przewija się w środku, panel odpowiedzi zostaje na dole).
+ * Widok klienta (link z tokenem): biały pasek z nazwą briefu i postępem, pod nim szary panel z rozmową.
+ * Bez logowania i bez listy briefów: klient widzi tylko swój brief.
  */
-export function Shell({
+export function ClientShell({
   title,
   subtitle,
-  right,
-  home,
-  fill,
+  value,
   children,
 }: {
-  title: string;
+  title?: string;
   subtitle?: string;
-  right?: ReactNode;
-  /** Czy tytuł prowadzi na stronę startową (tylko agencja). */
-  home?: boolean;
-  fill?: boolean;
+  value?: number;
   children: ReactNode;
 }) {
   return (
-    <div className={`shell ${fill ? "is-fill" : ""}`}>
-      <header className="topbar">
-        <div className="topbar-inner">
-          <div className="topbar-text">
-            {home ? (
-              <a className="topbar-title" href="/">
-                {title}
-              </a>
-            ) : (
-              <span className="topbar-title">{title}</span>
-            )}
-            {subtitle && <span className="topbar-sub">{subtitle}</span>}
-          </div>
-          {right && <div className="topbar-right">{right}</div>}
+    <div className="client-app">
+      <header className="client-head">
+        <Orb size={32} />
+        <div className="client-head-text">
+          <span className="client-head-title">{title ?? "DH Briefing"}</span>
+          {subtitle && <span className="client-head-sub">{subtitle}</span>}
         </div>
+        {value !== undefined && <Progress value={value} />}
       </header>
-      <div className="shell-body">{children}</div>
+      <div className="panel client-panel">{children}</div>
     </div>
   );
 }
@@ -50,7 +39,9 @@ export function Progress({ value, label }: { value: number; label?: string }) {
       <span className="meter" aria-hidden>
         <span style={{ width: `${value}%` }} />
       </span>
-      <span className="pct">{value}%</span>
+      <span className="pct">
+        {value}%<span className="visually-hidden"> gotowe</span>
+      </span>
     </span>
   );
 }
