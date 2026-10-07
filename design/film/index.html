@@ -1,47 +1,48 @@
 <!doctype html>
 <!--
-  Motion design composition template. Every frame is a pure function of time: window.__render(t).
-  No CSS animations, transition, setTimeout, Date.now() or Math.random() in the scenes,
-  so render.mjs captures frames deterministically and in many browsers at once.
+  BriefFlow: animations for the README. Every frame is a pure function of time: window.__render(t).
+  Three chapters, each a perfect loop (its last frame is its first) rendered as its own passage:
+     0–8 s   kula     answers orbit the orb; two are thrown in and swallowed, as on the start page
+     8–21 s  klient   four questions of the "Strona WWW" template; the brief fills with every click
+  21–32.5 s  agencja  an AI command adds two questions to the "Sklep" section, then it is undone
+  The screens use the app's own stylesheet (src/client/styles.css) and markup rendered from its
+  components and template (data.js, made by gen-data.tsx), so they show real questions and real UI.
 
-  Opened in a browser, it plays live: space = pause, ←/→ = ±1 s, click on the bar = seek.
-  Parameters: ?t=2.5 (still), ?speed=0.75 (pace), ?name=Name, ?w=1080&h=1920 (format, only for a try-out: set W and H for good).
-
-  The grey :root palette and the Urbanist font are demo placeholders, not a style. Replace them with the
-  brand's colours and font, or with a decision from references/look.md (check_film.py warns while they're
-  still here), then replace the scenes.
+  Opened in a browser, it plays live: space = pause, ←/→ = ±1 s, click on the bar = seek. ?t=2.5 = a still.
+  ?only=kula (klient, agencja) plays and renders one chapter alone, its time wrapped into a loop: that is how the
+  README WebPs are made, so even the motion blur at the seam comes from the chapter itself.
 -->
-<html lang="en">
+<html lang="pl">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Composition</title>
+    <title>BriefFlow film</title>
+    <link rel="stylesheet" href="../../src/client/styles.css" />
     <style>
-      /* BRAND FONT: Urbanist is only a demo placeholder. Replace the files and the family name with the brand's
-         font or one chosen for the subject (references/look.md); the FAMILY variable in the script must match. */
+      /* The brand font, the same files the app ships (@fontsource-variable/atkinson-hyperlegible-next). */
       @font-face {
-        font-family: "Urbanist";
-        src: url(fonts/urbanist-latin.woff2) format("woff2");
-        font-weight: 100 900;
+        font-family: "Atkinson Hyperlegible Next Variable";
+        src: url(fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2) format("woff2");
+        font-weight: 200 800;
         unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
       }
       @font-face {
-        font-family: "Urbanist";
-        src: url(fonts/urbanist-latin-ext.woff2) format("woff2");
-        font-weight: 100 900;
+        font-family: "Atkinson Hyperlegible Next Variable";
+        src: url(fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2) format("woff2");
+        font-weight: 200 800;
         unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
       }
 
-      /* BRAND TOKENS: the demo is grey on purpose, so nothing here passes for a style.
-         Replace with the values from the project's CSS, or with the palette decided in references/look.md. */
+      /* Brand tokens: the same values as :root in src/client/styles.css (light theme, the app's default).
+         Near-black is the action colour (pills, the send button); blue means "live, now". */
       :root {
-        --bg: #ececec;
-        --wash: #e2e2e2; /* soft light behind the intro: the background's hue, not the accent */
-        --ink: #161616;
-        --ink-2: #6e6e6e;
-        --line: #dcdcdc;
-        --accent: #8a8a8a;
-        --accent-dark: #727272;
+        --bg: #ffffff;
+        --panel: #f5f6f8;
+        --ink: #111318;
+        --ink-2: #474c58;
+        --line: #e9ebef;
+        --accent: #111318;
+        --blue: #3d5bf0;
       }
 
       * { box-sizing: border-box; }
@@ -50,44 +51,80 @@
       #stage { position: relative; flex: none; overflow: hidden; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; transform-origin: 50% 50%; }
       .capture body { display: block; }
       .capture #stage { transform: none !important; }
-      .scene { position: absolute; inset: 0; display: none; overflow: hidden; }
+      .scene { position: absolute; inset: 0; display: none; overflow: hidden; font-family: var(--font); font-size: 15px; line-height: 1.5; text-align: left; }
       .abs { position: absolute; left: 0; top: 0; }
       .fill { position: absolute; inset: 0; }
       .o0 { transform-origin: 0 0; }
       .mask { position: absolute; overflow: hidden; }
       .word { position: absolute; left: 0; top: 0; white-space: pre; }
       svg { overflow: visible; }
-      #grain { position: absolute; inset: -64px; pointer-events: none; opacity: 0.045; }
-      #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(120% 120% at 50% 45%, transparent 55%, color-mix(in srgb, var(--ink) 14%, transparent) 100%); } /* the edges darken in the ink's hue, not in black */
       #hud { position: fixed; left: 0; right: 0; bottom: 0; height: 26px; cursor: pointer; background: rgb(255 255 255 / 0.06); }
-      #hud i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+      #hud i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--blue); }
       #hud span { position: absolute; right: 10px; top: 4px; color: #bbb; font: 12px/1 ui-monospace, monospace; }
       .capture #hud { display: none; }
+
+      /* The app's own entrance animations and transitions run on the clock, not on t: here they finish at once,
+         and the film moves elements itself, through wrappers, so an animation's end state never overrides it. */
+      #stage *, #stage *::before, #stage *::after {
+        animation-duration: 0s !important;
+        animation-delay: 0s !important;
+        transition-duration: 0s !important;
+        transition-delay: 0s !important;
+      }
+
+      /* A screen: app markup at its own CSS pixels, scaled into the frame like a close-up. */
+      .screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+      .enter { display: flex; flex-direction: column; }
+      .cursor { position: absolute; left: 0; top: 0; width: 26px; height: 26px; z-index: 60; pointer-events: none; transform-origin: 3px 3px; }
+      .cursor svg { display: block; width: 100%; height: 100%; color: var(--ink); filter: drop-shadow(0 2px 3px rgb(17 19 24 / 0.28)); }
+      .cursor path { stroke: #fff; stroke-width: 1.5px; paint-order: stroke; stroke-linejoin: round; }
+      .tap { position: absolute; left: 0; top: 0; border-radius: 50%; border: 2px solid var(--blue); pointer-events: none; z-index: 59; }
+
+      /* Chapter 1: the start page hero */
+      .film-hero { position: absolute; left: 0; top: 0; }
+      .film-hero .hero-stage { position: absolute; margin: 0; }
+      .film-hero h1 { position: absolute; left: 0; width: 100%; text-align: center; font-size: 66px; font-weight: 750; line-height: 1.03; letter-spacing: -0.035em; }
+      .film-orb { position: absolute; left: 50%; top: 50%; z-index: 2; }
+      .film-orb img, .film-orb i { position: absolute; display: block; max-width: none; }
+      .film-orb i { border-radius: 50%; }
+
+      /* Chapter 2: the client conversation and the brief next to it */
+      .film-try .try-thread { overflow: hidden; height: 470px; }
+      .film-try .try-rows li.is-flash { background: var(--blue-soft); }
+
+      /* Chapter 3: the agency's brief with the AI command bar */
+      .film-agency { position: absolute; display: grid; grid-template-rows: auto 1fr auto; padding: 0; border-radius: 22px; background: var(--panel); overflow: hidden; }
+      .film-agency .agency-head { display: flex; align-items: center; gap: 10px; padding: 18px 26px 6px; }
+      .film-agency .agency-head h2 { font-size: 18px; font-weight: 750; letter-spacing: -0.015em; }
+      .film-agency .agency-scroll { position: relative; overflow: hidden; padding: 0 22px; }
+      .film-agency .agency-list { display: grid; gap: 12px; padding: 10px 4px 120px; }
+      .film-agency .qcard.is-new { box-shadow: 0 0 0 2px var(--blue), var(--shadow-lift); }
+      .film-agency .dock { width: auto; margin: 0 22px; }
     </style>
   </head>
   <body>
     <div id="stage"></div>
     <div id="hud"><i></i><span></span></div>
-
+    <script src="data.js"></script>
     <script>
       // ------------------------------------------------------------------
       // Parameters
       // ------------------------------------------------------------------
       const Q = new URLSearchParams(location.search);
       const CAPTURE = Q.has("capture");
-      const FAMILY = "Urbanist"; // demo placeholder; must match @font-face
-      const NAME = Q.get("name") || "Motion"; // NAME: a single parameter; a spelling fix is one change, not a rewrite of the scenes
+      const FAMILY = "Atkinson Hyperlegible Next Variable"; // the app's font; must match @font-face
+      const NAME = Q.get("name") || "BriefFlow"; // NAME: a single parameter; a spelling fix is one change, not a rewrite of the scenes
       // FORMAT: set it here for good (e.g. 1080 × 1920 for a reel), so it cannot be forgotten at render time.
       // ?w=…&h=… overrides it only for a test.
-      const W = Number(Q.get("w")) || 1920;
-      const H = Number(Q.get("h")) || 1080;
+      const W = Number(Q.get("w")) || 1600;
+      const H = Number(Q.get("h")) || 900;
       const CX = W / 2, CY = H / 2;
       // LENGTH: the scenes are laid out in "project time" up to TIMELINE (s). SPEED stretches the whole film evenly
       // (0.75 = 25% slower), so the film lasts TIMELINE / SPEED.
-      const TIMELINE = 13;
+      const TIMELINE = 32.5;
       // Subframes per frame for the render (motion blur). render.mjs reads it, so a re-render keeps the value the film was
       // checked with: raise it to 8–10 when the fastest passage steps (references/render.md).
-      const SUB = 5;
+      const SUB = 10; // 10: the scroll in "agencja" and "klient" steps thin letters at 5
       const SPEED = Number(Q.get("speed") || 1);
       const DURATION = TIMELINE / SPEED;
       if (CAPTURE) document.documentElement.classList.add("capture");
@@ -166,7 +203,7 @@
       };
       // Weights by role. A static family has only the weights its @font-face blocks declare, and the browser fakes the rest:
       // set these to the declared ones. FONT() records what the scenes ask for, and __ready warns about anything undeclared.
-      const WT = { numeral: 200, display: 300, text: 400, label: 600, heavy: 800 };
+      const WT = { text: 400, label: 600, display: 750, heavy: 800 };
       const requested = new Set();
       const FONT = (weight, px, style = "") => (requested.add(`${weight} ${style || "normal"}`), `${style ? style + " " : ""}${weight} ${px}px "${FAMILY}"`);
 
@@ -460,189 +497,533 @@
       const cue = (t, kind, opt = {}) => CUES.push({ t: +(t - building).toFixed(4), kind, ...opt });
 
       // ==================================================================
-      // DEMO 1: kerned letters, the dot over the "i", a caption built from masks, a zoom into the dot
+      // BriefFlow. Shared pieces: a screen of app markup, measuring inside it, the pointer.
       // ==================================================================
-      scene("intro", 0, 3.7, (root) => {
-        const bg = el("div", "fill", root);
-        const cam = el("div", "fill o0", root);
-        const FS = Math.round(Math.min(W, H) * 0.22);
-        const font = FONT(WT.display, FS);
-        const i = NAME.indexOf("i");
-        const tt = i >= 0 ? tittle(font, FS) : null;
-        const text = tt ? NAME.slice(0, i) + "ı" + NAME.slice(i + 1) : NAME;
-        const m = measure(text, font, "-0.03em");
-        const x0 = CX - m.w / 2, top = CY - FS * 0.62;
-        const word = el("div", "abs", cam);
-        word.style.cssText += `width:${W}px;height:${FS * 1.3}px`;
-        const ls = letters(word, text, font, "-0.03em");
-        const dot = el("div", "abs", cam); // outside the word container: the jump arc must not be clipped
-        const dotX = tt ? x0 + ls[i].x + tt.cx - tt.r : CX, dotY = tt ? tt.cy - tt.r : 0;
-        if (tt) dot.style.cssText += `width:${tt.r * 2}px;height:${tt.r * 2}px;border-radius:50%;background:var(--accent);transform-origin:50% 100%`;
-        const tag = wordRow(cam, "Frame by frame.".split(" ").map((t) => ({ text: t })), { x: CX, y: top + FS * 1.15, size: Math.round(FS * 0.24), align: "center", color: css("--ink-2") });
-        // zoom only as deep as needed: the dot's solid core covers the frame at the cut, with room for its soft edge
-        const ZMAX = tt ? (1.35 * Math.hypot(W / 2, H / 2)) / tt.r : 140;
-        const Z = (u) => zoom(u, 2.7, 3.55, 1, ZMAX, E.in3);
-        const HIT = 1.55;
-        cue(0.4, "rise"); cue(HIT, "impact"); cue(2.75, "riser", { d: 0.8 }); cue(3.55, "boom");
+      const D = window.DATA;
+      const ORB_SOFT = "../../public/brand/orb-soft-900.webp";
+      const ORB_SMALL = "../../public/brand/orb-160.webp";
 
-        return (t) => {
-          bg.style.background = `radial-gradient(70% 80% at ${12 + Math.sin(t * 0.4) * 8}% -10%, ${css("--wash")} 0%, transparent 62%), ${css("--bg")}`;
-          const punch = t > HIT ? Math.sin((t - HIT) * 26) * Math.exp(-(t - HIT) * 7) * 0.025 : 0;
-          const f = E.io3(prog(t, 2.55, 3.25));
-          camera(cam, {
-            fx: lerp(CX, dotX + (tt?.r ?? 0), f),
-            fy: lerp(CY, top + dotY + (tt?.r ?? 0), f),
-            s: Z(t) * (1 + t * 0.008 + punch),
-          });
-          T(word, { y: top });
-          word.style.overflow = t < 1.4 ? "hidden" : "visible"; // the letters rise from below the edge
-          // as the zoom speeds up, the words give way to the dot: text edges can't be softened, and 5 subframes would step them
-          const giveWay = 1 - E.in2(prog(t, 3.0, 3.3));
-          word.style.opacity = giveWay;
-          for (const it of tag.items) it.mask.style.opacity = giveWay;
-          ls.forEach((L, k) => {
-            const p = E.outExpo(prog(t, 0.35 + k * 0.05, 1.1 + k * 0.05));
-            T(L.e, { x: x0 + L.x, y: (1 - p) * FS * 1.15, r: (1 - p) * 9 });
-          });
-          if (tt) {
-            // The dot is the hero from the first frame (the thumbnail must not be empty): it waits in the middle,
-            // the letters rise around it, then it jumps in an arc over the "ı" and lands with a squash.
-            const jump = E.io3(prog(t, HIT - 0.5, HIT));
-            const startX = CX - tt.r, startY = CY - tt.r;
-            const breathe = 1 + Math.sin(t * 5) * 0.04 * (1 - jump);
-            const land = t > HIT ? Math.exp(-(t - HIT) * 9) * Math.sin((t - HIT) * 30) * 0.25 : 0;
-            T(dot, {
-              x: lerp(startX, dotX, jump),
-              y: lerp(startY, top + dotY, jump) - Math.sin(jump * Math.PI) * FS * 0.9,
-              s: lerp(2.6, 1, E.out3(jump)) * breathe * (t < 0.05 ? 0.9 + t * 2 : 1),
-              sx: 1 + land, sy: 1 - land,
-            });
-            // a soft edge in proportion to its speed on screen (as iris() does), so the fast zoom doesn't step into rings
-            const soft = clamp((0.6 * Math.abs(vel((u) => tt.r * Z(u), t))) / Z(t) / tt.r, 0, 0.6);
-            dot.style.background = soft > 0.01 ? `radial-gradient(circle closest-side, var(--accent) ${(1 - soft) * 100}%, transparent 100%)` : "var(--accent)";
-          }
-          animRow(tag, t, 1.2, null, { st: 0.06, rot: 0 });
-        };
-      });
-
-      // ==================================================================
-      // DEMO 2: letters as windows. A huge "MOVE" on the accent colour, and the next scene already
-      // shows through the letters. Then a zoom into the middle of a letter, and the window covers the frame.
-      // It starts when the enlarged dot from the intro covers the whole screen: the cut is invisible.
-      // ==================================================================
-      let windowFor = null; // scenes 2 and 3 share the window: scene 3 is clipped by the letters of scene 2; WINDOWS holds its timing
-      const WINDOWS = { enter: [3.62, 4.2], zoom: [5.15, 5.95] };
-      scene("windows", 3.55, WINDOWS.zoom[1], (root) => {
-        root.style.background = "var(--accent)";
-        cue(3.62, "whoosh"); cue(WINDOWS.zoom[0], "riser", { d: 0.8 });
-        return () => {};
-      });
-
-      // ==================================================================
-      // DEMO 3: a counter and a typewriter, at first visible only through the letters,
-      // and at the end a transition in the shape of the mark (three rounded squares).
-      // ==================================================================
-      scene("numbers", 3.55, 8.45, (root) => {
-        root.style.background = "var(--bg)";
-        // a moving background, so the windows show life rather than a flat patch
-        const grid = el("div", "fill", root);
-        grid.style.cssText += `inset:-200px;background-image:linear-gradient(var(--line) 2px,transparent 2px),linear-gradient(90deg,var(--line) 2px,transparent 2px);background-size:120px 120px`;
-        const size = Math.round(Math.min(W, H) * 0.34);
-        const num = el("div", "abs", root);
-        num.style.cssText += `left:0;width:${W}px;top:${CY - size * 0.62}px;text-align:center;font:${FONT(WT.numeral, size)};line-height:1;letter-spacing:-0.05em;font-variant-numeric:tabular-nums;color:var(--ink)`;
-        const unit = el("div", "abs", root);
-        unit.style.cssText += `left:0;width:${W}px;top:${CY + size * 0.46}px;text-align:center;font:${FONT(WT.label, Math.round(size * 0.16))};color:var(--ink-2)`;
-        unit.textContent = "frames per second";
-        const line = el("div", "abs", root);
-        line.style.cssText += `left:0;width:${W}px;top:${CY + size * 0.72}px;text-align:center;font:${FONT(WT.text, Math.round(size * 0.11))};color:var(--ink-2)`;
-        windowFor = letterWindow(root, "MOVE", { size: Math.round(Math.min(W, H) * 0.42), weight: WT.heavy });
-        const m = Math.min(W, H);
-        const wipe = shapeWipe(root, [
-          { x: CX - m * 0.16, y: CY + m * 0.1, size: m * 0.3 },
-          { x: CX + m * 0.03, y: CY - m * 0.17, size: m * 0.13 },
-          { x: CX + m * 0.2, y: CY + m * 0.05, size: m * 0.19 },
-        ], "var(--ink)");
-        cue(4.0, "count", { d: 2.2 }); cue(7.75, "pop"); cue(7.95, "whoosh");
-
-        return (t) => {
-          windowFor(prog(t, ...WINDOWS.enter), prog(t, ...WINDOWS.zoom));
-          T(grid, { x: -(t * 40) % 120, y: -(t * 25) % 120 });
-          num.textContent = counter(60, t, 4.0, 6.4);
-          T(unit, { y: (1 - E.outExpo(prog(t, 6.0, 6.7))) * 30, o: prog(t, 6.0, 6.25) });
-          line.innerHTML = typewriter("With motion blur.", t, 6.2, 6.7);
-          wipe(t, 7.7);
-        };
-      });
-
-      // ==================================================================
-      // DEMO 4: morphing. The dot becomes a star, the star a rounded square (the mark),
-      // and the name slides in beside it. The end card holds until the end.
-      // ==================================================================
-      scene("mark", 8.4, TIMELINE + 1, (root) => {
-        root.style.background = "var(--ink)";
-        const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, class: "abs" }, root);
-        const shape = svgEl("path", { fill: "var(--accent)" }, svg);
-        const R = Math.min(W, H) * 0.13;
-        const size = Math.round(Math.min(W, H) * 0.15);
-        // lockup: mark and name centred together; the mark moves left, the name slides in beside it
-        const nameW = measure(NAME, FONT(WT.display, size), "-0.03em").w;
-        const left = CX - (2.35 * R + nameW) / 2;
-        const XS = left + R;
-        const name = wordRow(root, [{ text: NAME, w: WT.display }], { x: left + 2.35 * R, y: CY - size * 0.68, size, color: "var(--bg)" });
-        const circle = SHAPE.circle(), star = SHAPE.star(5, 0.48), sq = SHAPE.squircle(5, 0.84);
-        cue(8.7, "pop"); cue(9.55, "pop"); cue(10.25, "rise");
-
-        return (t) => {
-          const a = E.io3(prog(t, 8.7, 9.2)), b = E.io3(prog(t, 9.55, 10.05));
-          const grow = t < 8.45 ? 0 : clamp(spring(t - 8.45, 2.2, 0.5), 0, 1.2);
-          const cx = lerp(CX, XS, E.io4(prog(t, 10.0, 10.6)));
-          const [fa, fb, p] = b > 0 ? [star, sq, b] : [circle, star, a];
-          // rotate by 72° (the star's symmetry), then on to 90° (the square's symmetry): both shapes land upright
-          const rot = a * ((2 * Math.PI) / 5) + b * (Math.PI / 2 - (2 * Math.PI) / 5);
-          shape.setAttribute("d", morphPath(cx, CY, R * (0.35 + 0.65 * grow), fa, fb, p, rot));
-          animRow(name, t, 10.25, null, { st: 0.05, rot: 6 });
-        };
-      });
-
-      // ------------------------------------------------------------------
-      // Grain + vignette (the grain changes 24 times per second of output time)
-      // ------------------------------------------------------------------
-      let grain;
-      function makeGrain() {
-        grain = el("canvas", null, stage);
-        grain.id = "grain";
-        // square grain pixels in every format: the canvas has the proportions of the frame plus the jitter margin
-        const px = Math.max(2, Math.round(Math.min(W, H) / 400));
-        const gw = Math.ceil((W + 128) / px), gh = Math.ceil((H + 128) / px);
-        grain.width = gw;
-        grain.height = gh;
-        const g = grain.getContext("2d");
-        const img = g.createImageData(gw, gh);
-        for (let i = 0; i < gw * gh; i++) {
-          const v = hash(i * 1.37) * 255;
-          img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
-          img.data[i * 4 + 3] = 255;
-        }
-        g.putImageData(img, 0, 0);
-        grain.style.cssText = `width:${gw * px}px;height:${gh * px}px;image-rendering:pixelated`;
-        el("div", null, stage).id = "vignette";
+      function screen(root, w, h, s, x = (W - w * s) / 2, y = (H - h * s) / 2) {
+        const e = el("div", "screen", root);
+        e.style.width = `${w}px`;
+        if (h) e.style.height = `${h}px`;
+        e.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+        return e;
       }
+      // Where an element sits inside a screen, in the screen's own CSS pixels (fx, fy: point within the element).
+      function at(scr, e, fx = 0.5, fy = 0.5) {
+        const a = scr.getBoundingClientRect(), b = e.getBoundingClientRect(), k = a.width / scr.offsetWidth;
+        return { x: (b.left - a.left + b.width * fx) / k, y: (b.top - a.top + b.height * fy) / k, w: b.width / k, h: b.height / k };
+      }
+      // A chat message enters like the app's msg-in: 8 px up and in. Applied to a wrapper, never to the animated element.
+      const enter = (e, t, a, d = 0.4) => {
+        const p = E.out4(prog(t, a, a + d));
+        T(e, { y: (1 - p) * 8, o: p });
+      };
+      const show = (e, on) => (e.style.display = on ? "" : "none");
+      // A path through key points [t, x, y]: io3 between them, with a slight arc like a hand.
+      function follow(keys, t) {
+        let x = keys[0][1], y = keys[0][2];
+        for (let i = 1; i < keys.length; i++) {
+          const [t0, x0, y0] = keys[i - 1], [t1, x1, y1] = keys[i];
+          if (t >= t1) {
+            x = x1;
+            y = y1;
+            continue;
+          }
+          if (t > t0) {
+            const p = E.io3(prog(t, t0, t1));
+            x = lerp(x0, x1, p);
+            y = lerp(y0, y1, p) - Math.sin(p * Math.PI) * Math.hypot(x1 - x0, y1 - y0) * 0.08;
+          }
+          break;
+        }
+        return { x, y };
+      }
+      // The pointer: its tip at p, pressed on clicks (or held down), a ring where it clicks.
+      function makePointer(parent) {
+        const c = el("div", "cursor", parent, D.icons.pointer);
+        const ring = el("div", "tap", parent);
+        return (t, p, o, clicks = [], held = false) => {
+          let press = held ? 1 : 0, rp = -1;
+          for (const k of clicks) {
+            press = Math.max(press, 1 - Math.abs(t - k) / 0.12);
+            if (t >= k && t < k + 0.5) rp = (t - k) / 0.5;
+          }
+          T(c, { x: p.x - 3, y: p.y - 3, s: 1 - 0.14 * clamp(press), o });
+          if (rp >= 0 && o > 0) {
+            const r = 6 + 20 * E.out3(rp);
+            ring.style.width = ring.style.height = `${2 * r}px`;
+            T(ring, { x: p.x - r, y: p.y - r, o: (1 - rp) * 0.75 * o });
+          } else ring.style.opacity = 0;
+        };
+      }
+
+      // ==================================================================
+      // 1. Kula (0–8 s): the start page hero. Answers orbit the orb; the pointer throws two of them in,
+      //    the orb swallows each one and takes on its colour for a moment, then the answer returns to the orbit.
+      // ==================================================================
+      scene("kula", 0, 8, (root) => {
+        const L = 8, S = 1.6;
+        const sw = W / S, sh = H / S;
+        const scr = screen(root, sw, sh, S, 0, 0);
+        const hero = el("div", "film-hero fill", scr);
+        const SW = 860, SH = 400, top = (sh - (SH + 40 + 68)) / 2;
+        const stageEl = el("div", "hero-stage", hero);
+        stageEl.style.cssText += `left:${(sw - SW) / 2}px;top:${top}px;width:${SW}px;height:${SH}px`;
+        stageEl.innerHTML = `<svg class="hero-orbit-line" viewBox="-100 -100 200 200" preserveAspectRatio="none"><ellipse cx="0" cy="0" rx="94" ry="80" transform="rotate(-9)"/></svg>`;
+        const h1 = el("h1", null, hero, "Klient klika. Ty masz brief.");
+        h1.style.top = `${top + SH + 40}px`;
+
+        // The orb: the brand image, the soft glow of the start page shader, a slow light inside, and the ink of a swallowed answer.
+        const BALL = 193, R = BALL / 2; // the shader's ball: 0.42 of its 460 px canvas
+        const orb = el("div", "film-orb", stageEl);
+        const glow = el("i", null, orb);
+        const img = el("img", null, orb);
+        img.src = ORB_SOFT;
+        const ink = el("i", null, orb);
+        const light = el("i", null, orb);
+        const IMG = BALL / 0.79, G = 480;
+        img.style.cssText += `width:${IMG}px;height:${IMG}px;left:${-IMG / 2}px;top:${-IMG / 2}px`;
+        glow.style.cssText += `width:${G}px;height:${G}px;left:${-G / 2}px;top:${-G / 2}px`;
+        for (const e of [light, ink]) e.style.cssText += `width:${BALL}px;height:${BALL}px;left:${-R}px;top:${-R}px`;
+
+        const box = el("div", "orbit", stageEl);
+        const chips = D.orbit.map((c) => el("span", `orbit-chip ${c.tone}`, box, `<span class="pill-icon">${c.icon}</span>${esc(c.label)}`));
+        const widths = chips.map((c) => c.offsetWidth);
+        const inkOf = chips.map((c) => getComputedStyle(c).getPropertyValue("--tone-fg").trim() || css("--blue"));
+        const n = chips.length, A = SW * 0.47, B = SH * 0.4, tilt = -0.16;
+        // A slot on the tilted ellipse; the orbit sways instead of turning, so the loop closes on itself.
+        const slot = (i, t) => {
+          const ang = (i / n) * Math.PI * 2 + 0.35 + 0.1 * Math.sin((2 * Math.PI * t) / L);
+          const x0 = Math.cos(ang) * A, y0 = Math.sin(ang) * B;
+          const depth = (Math.sin(ang) + 1) / 2, s = 0.8 + depth * 0.2;
+          const room = SW / 2 - (widths[i] * s) / 2 - 6;
+          return { x: clamp(x0 * Math.cos(tilt) - y0 * Math.sin(tilt), -room, room), y: x0 * Math.sin(tilt) + y0 * Math.cos(tilt), s, o: 0.45 + depth * 0.55, z: depth > 0.5 ? 3 : 1 };
+        };
+        const FLY = 0.16, ABS = 0.38, GONE = 1.5, SPAWN = 0.45;
+        const throws = [
+          { i: 3, g: 1.6, r: 2.4 },
+          { i: 1, g: 4.45, r: 5.15 },
+        ].map((h) => {
+          const g0 = slot(h.i, h.g);
+          const d = Math.hypot(g0.x, g0.y);
+          const ux = g0.x / d, uy = g0.y / d;
+          return { ...h, g0, rx: ux * R * 1.6, ry: uy * R * 1.6, ex: ux * R * 0.8, ey: uy * R * 0.8, ux, uy, sw: h.r + FLY + ABS, grab: -widths[h.i] * 0.28 };
+        });
+        for (const h of throws) {
+          cue(h.g, "grab");
+          cue(h.sw, "swallow");
+        }
+        const chipAt = (i, t) => {
+          const s = slot(i, t);
+          const h = throws.find((x) => x.i === i);
+          if (!h || t < h.g) return { ...s, held: h ? t > h.g - 0.2 : false };
+          if (t < h.r) {
+            const p = E.io3(prog(t, h.g, h.r));
+            return { x: lerp(h.g0.x, h.rx, p), y: lerp(h.g0.y, h.ry, p) - Math.sin(p * Math.PI) * 26, s: lerp(h.g0.s, 1.08, E.out3(prog(t, h.g, h.g + 0.16))), o: lerp(h.g0.o, 1, E.out3(prog(t, h.g, h.g + 0.16))), z: 7, held: true };
+          }
+          if (t < h.r + FLY) {
+            const p = prog(t, h.r, h.r + FLY);
+            return { x: lerp(h.rx, h.ex, p), y: lerp(h.ry, h.ey, p), s: 1.04, o: 1, z: 6 };
+          }
+          if (t < h.sw) {
+            const pull = prog(t, h.r + FLY, h.sw) ** 2;
+            return { x: h.ex * (1 - pull), y: h.ey * (1 - pull), s: 1 - pull * 0.85, o: 1 - pull, z: 3 };
+          }
+          if (t < h.sw + GONE) return { ...s, o: 0 };
+          const grow = E.out3(prog(t, h.sw + GONE, h.sw + GONE + SPAWN));
+          return { ...s, s: s.s * grow, o: s.o * grow };
+        };
+
+        // The pointer, in screen pixels: the orbit's centre sits at (OX, OY).
+        const OX = sw / 2, OY = top + SH / 2;
+        const point = makePointer(scr);
+        const [h1t, h2t] = throws;
+        const gp = (h) => ({ x: OX + h.g0.x + h.grab * h.g0.s, y: OY + h.g0.y + 4 });
+        const keysA = [[0.75, gp(h1t).x + 150, gp(h1t).y + 170], [h1t.g, gp(h1t).x, gp(h1t).y]];
+        // after the release the hand follows through a little towards the orb, then steps aside, out of the orb's way
+        const after = (h) => ({ x: OX + h.rx * 0.88 + h.grab * 1.08, y: OY + h.ry * 0.88 + 4 });
+        const aside = (h) => ({ x: OX + h.g0.x * 0.7, y: OY + h.g0.y * 0.7 + 70 });
+        const keysB = [[h1t.r + 0.4, after(h1t).x, after(h1t).y], [h1t.r + 1.0, aside(h1t).x, aside(h1t).y], [h2t.g - 1.0, aside(h1t).x, aside(h1t).y], [h2t.g, gp(h2t).x, gp(h2t).y]];
+        const keysC = [[h2t.r + 0.4, after(h2t).x, after(h2t).y], [h2t.r + 1.0, aside(h2t).x + 40, aside(h2t).y + 30]];
+        const pointerAt = (t) => {
+          for (const h of throws)
+            if (t >= h.g && t < h.r) {
+              const c = chipAt(h.i, t);
+              return { x: OX + c.x + h.grab * c.s, y: OY + c.y + 4 };
+            }
+          // between grab and release the pointer travels with the chip; after release it eases out along the throw
+          if (t < h1t.g) return follow(keysA, t);
+          if (t < h2t.r) {
+            const p = E.out3(prog(t, h1t.r, h1t.r + 0.4));
+            const c = { x: OX + h1t.rx + h1t.grab * 1.08, y: OY + h1t.ry + 4 };
+            if (t < h1t.r + 0.4) return { x: lerp(c.x, keysB[0][1], p), y: lerp(c.y, keysB[0][2], p) };
+            return follow(keysB, t);
+          }
+          const c = { x: OX + h2t.rx + h2t.grab * 1.08, y: OY + h2t.ry + 4 };
+          if (t < h2t.r + 0.4) {
+            const p = E.out3(prog(t, h2t.r, h2t.r + 0.4));
+            return { x: lerp(c.x, keysC[0][1], p), y: lerp(c.y, keysC[0][2], p) };
+          }
+          return follow(keysC, t);
+        };
+
+        return (t) => {
+          const w = (2 * Math.PI * t) / L;
+          // the most recent swallow drives the orb; it settles before the loop closes
+          let pulse = 0, hit = throws[0];
+          for (const h of throws)
+            if (t >= h.sw) {
+              pulse = Math.exp(-(t - h.sw) * 1.25);
+              hit = h;
+            }
+          pulse *= 1 - E.io2(prog(t, 7.2, 7.95));
+          const col = inkOf[hit.i];
+          T(orb, { s: 1 + 0.035 * pulse });
+          glow.style.background = `radial-gradient(circle, color-mix(in srgb, rgb(126 151 255) ${100 - pulse * 45}%, ${col}) 0%, transparent 68%)`;
+          glow.style.opacity = 0.32 + 0.06 * Math.sin(w) + pulse * 0.2;
+          light.style.background = `radial-gradient(circle at ${42 + 9 * Math.sin(w)}% ${36 + 7 * Math.cos(w)}%, rgb(255 255 255 / 0.3), transparent 46%)`;
+          const hx = 50 + hit.ux * 40, hy = 50 + hit.uy * 40;
+          // as in the shader: the answer's colour, lightened a little, spreads from where it fell in
+          const tint = `color-mix(in srgb, ${col} 78%, rgb(201 214 255))`;
+          ink.style.background = `radial-gradient(circle at ${hx}% ${hy}%, ${tint} 0%, ${tint} ${10 + (1 - pulse) * 40}%, transparent ${30 + (1 - pulse) * 110}%)`;
+          ink.style.opacity = Math.pow(pulse, 0.55) * 0.72;
+          ink.style.transform = `rotate(${(1 - pulse) * 70}deg)`;
+
+          chips.forEach((c, i) => {
+            const s = chipAt(i, t);
+            c.style.transform = `translate(-50%, -50%) translate(${s.x.toFixed(2)}px, ${s.y.toFixed(2)}px) scale(${s.s.toFixed(4)})`;
+            c.style.opacity = clamp(s.o).toFixed(3);
+            c.style.zIndex = s.z;
+            c.classList.toggle("is-held", !!s.held);
+          });
+          const held = throws.some((h) => t >= h.g && t < h.r);
+          const o = Math.min(E.out3(prog(t, 0.75, 1.05)), 1 - E.in3(prog(t, h2t.r + 0.45, h2t.r + 0.8)));
+          point(t, pointerAt(t), o, throws.map((h) => h.g), held);
+        };
+      });
+
+      // ==================================================================
+      // 2. Klient (8–21 s): the client answers four questions of the "Strona WWW" template, one at a time,
+      //    mostly by clicking; every answer lands in the brief next to the conversation. "Od nowa" closes the loop.
+      // ==================================================================
+      scene("klient", 8, 21, (root) => {
+        const L = 13, S = 1.5, FW = 980;
+        const scr = screen(root, FW, 0, S);
+        const frame = el("div", "try-frame film-try", scr);
+        const chat = el("div", "try-chat", frame);
+        const thread = el("div", "try-thread", chat);
+        const inner = el("div", null, thread);
+        inner.style.cssText = "display:flex;flex-direction:column;gap:12px";
+        const avatar = `<span class="orb avatar-orb" style="width:28px;height:28px"><img src="${ORB_SMALL}" width="28" height="28" alt=""></span>`;
+        const bot = (html) => `<div class="bot">${avatar}<div class="bubble bubble-bot">${html}</div></div>`;
+        const hello = el("div", "enter", inner, bot("Zaczynamy! Klikaj odpowiedzi, a jeśli czegoś nie wiesz, wybierz „Nie wiem”."));
+        hello.querySelector(".bubble").classList.add("try-hello");
+
+        // The client's answers, from the template's own options.
+        const pick = { f_ma_strone: ["yes"], f_sytuacja: ["plan"], f_funkcje: ["formularz", "realizacje"] };
+        const turns = D.chat.map((q) => {
+          const turn = el("div", "turn", inner);
+          const ask = el("div", "enter", turn, bot(`${esc(q.label)}${q.help ? `<span class="bubble-help">${esc(q.help)}</span>` : ""}`));
+          const multi = q.type === "multi_choice";
+          const ans = el(
+            "div",
+            "enter",
+            turn,
+            `<div class="try-answers">${multi ? `<p class="answer-hint">${D.icons.check15} Możesz zaznaczyć kilka</p>` : ""}` +
+              `<div class="tiles ${q.type === "yes_no" ? "tiles-pair" : ""}">` +
+              q.options
+                .map(
+                  (o) =>
+                    `<button class="tile ${o.tone}" data-id="${o.id}"><span class="tile-icon">${o.icon}</span><span class="tile-text">${esc(o.label)}</span>` +
+                    (multi ? `<span class="tile-check is-box"></span>` : "") +
+                    `</button>`,
+                )
+                .join("") +
+              `</div><div class="quick-row"><button class="quick">${D.icons.help} Nie wiem</button><button class="quick">${D.icons.pause} Pomiń na razie</button>` +
+              (multi ? `<button class="btn btn-primary answer-next" disabled>Dalej ${D.icons.arrowRight}</button>` : "") +
+              `</div></div>`,
+          );
+          const text = pick[q.id] ? q.options.filter((o) => pick[q.id].includes(o.id)).map((o) => o.label).join(", ") : "Nie wiem";
+          const me = el("div", "enter", turn, `<span class="bubble bubble-me ${pick[q.id] ? "" : "is-tentative"}">${esc(text)}</span>`);
+          const tile = (id) => ans.querySelector(`[data-id="${id}"]`);
+          return { q, turn, ask, ans, me, text, tile, unknown: ans.querySelectorAll(".quick")[0], next: ans.querySelector(".answer-next") };
+        });
+        const done = el(
+          "div",
+          "enter",
+          inner,
+          bot(`Gotowe. Tyle zajmuje klientowi kawałek briefu.<span class="bubble-help">Pełny szablon ma ${D.templateSize} pytań, a klient może przerwać w dowolnym miejscu.</span>`),
+        );
+
+        const aside = el(
+          "aside",
+          "try-brief",
+          frame,
+          `<div class="try-brief-head"><span class="brief-head-icon">${D.icons.fileText}</span><h3>Twój brief</h3><span class="pct">0%</span></div>` +
+            `<span class="meter meter-wide"><span style="width:0%"></span></span>` +
+            `<ul class="try-rows">${D.chat.map((q) => `<li><span class="brief-q">${esc(q.label)}</span><span class="brief-a"></span></li>`).join("")}</ul>` +
+            `<button class="btn btn-small try-reset" disabled>${D.icons.undo.replace(/width="19" height="19"/, 'width="15" height="15"')} Od nowa</button>`,
+        );
+        const pct = aside.querySelector(".pct"), bar = aside.querySelector(".meter > span");
+        const rows = [...aside.querySelectorAll(".try-rows li")], reset = aside.querySelector(".try-reset");
+        scr.style.transform = `translate(${(W - FW * S) / 2}px,${(H - frame.offsetHeight * S) / 2}px) scale(${S})`;
+
+        // Clicks (local time) and the moments the answers land.
+        const C = { tak: 1.25, plan: 3.3, form: 4.75, real: 5.35, next: 6.05, nw: 7.55, reset: 11.2 };
+        const commits = [C.tak + 0.18, C.plan + 0.18, C.next + 0.15, C.nw + 0.15]; // step k+1 starts at commits[k]
+        const RESET = C.reset + 0.1;
+        const stepAt = (u) => (u >= RESET ? 0 : commits.filter((c) => u >= c).length);
+
+        // Lay out one state of the conversation: which turns exist, what is current, what is answered.
+        const apply = (step, u) => {
+          turns.forEach((tr, k) => {
+            show(tr.turn, k <= step);
+            show(tr.ans, k === step);
+            show(tr.me, k < step);
+            if (tr.q.type === "multi_choice")
+              for (const id of pick.f_funkcje) {
+                const on = k === step && u >= (id === "formularz" ? C.form : C.real);
+                const tl = tr.tile(id);
+                tl.classList.toggle("is-on", on);
+                tl.querySelector(".tile-check").innerHTML = on ? D.icons.check14 : "";
+              }
+            if (tr.next) tr.next.disabled = !(k === step && u >= C.form);
+            // a single choice shows as picked between the click and the moment the answer lands
+            const single = { 0: ["yes", C.tak], 1: ["plan", C.plan] }[k];
+            if (single) tr.tile(single[0]).classList.toggle("is-on", k === step && u >= single[1] && u < RESET);
+          });
+          show(done, step >= 4);
+          reset.disabled = step === 0;
+        };
+        // Scroll position of each state: the thread follows the newest message, as the app does.
+        const scrollOf = [];
+        for (let k = 0; k <= 4; k++) {
+          apply(k, k === 2 ? C.real : 0);
+          scrollOf.push(Math.max(0, inner.offsetHeight - thread.clientHeight + 38));
+        }
+        const scrollAt = (u) => {
+          const step = stepAt(u);
+          if (u >= RESET) return 0;
+          if (step === 0) return scrollOf[0];
+          const p = E.io3(prog(u, commits[step - 1], commits[step - 1] + 0.7));
+          return lerp(scrollOf[step - 1], scrollOf[step], p);
+        };
+        // Pointer targets, measured in the state each one is clicked in.
+        const spot = (step, e, u = 0, fx = 0.5, fy = 0.5) => {
+          apply(step, u);
+          inner.style.transform = `translateY(${-scrollOf[step]}px)`;
+          const p = at(scr, e, fx, fy);
+          return [p.x, p.y];
+        };
+        const P = {
+          tak: spot(0, turns[0].tile("yes"), 0, 0.42, 0.55),
+          plan: spot(1, turns[1].tile("plan"), 0, 0.4, 0.55),
+          form: spot(2, turns[2].tile("formularz"), 0, 0.4, 0.55),
+          real: spot(2, turns[2].tile("realizacje"), C.form, 0.4, 0.55),
+          next: spot(2, turns[2].next, C.real, 0.45, 0.6),
+          nw: spot(3, turns[3].unknown, 0, 0.45, 0.6),
+          reset: spot(4, reset, 0, 0.5, 0.6),
+        };
+        inner.style.transform = "";
+        const keys = [
+          [0.45, P.tak[0] + 170, P.tak[1] + 190],
+          [1.15, ...P.tak],
+          [2.55, ...P.tak],
+          [3.2, ...P.plan],
+          [4.65, ...P.form],
+          [5.25, ...P.real],
+          [5.95, ...P.next],
+          [7.45, ...P.nw],
+          [10.6, ...P.nw],
+          [11.1, ...P.reset],
+          [11.9, P.reset[0] + 30, P.reset[1] + 40],
+        ];
+        const point = makePointer(scr);
+        Object.values(C).forEach((c) => cue(8 + c, "click"));
+
+        return (t) => {
+          const u = t - 8;
+          const step = stepAt(u);
+          apply(step, u);
+          inner.style.transform = `translateY(${-scrollAt(u).toFixed(2)}px)`;
+          // entrances: the client's answer at once, the next question a beat later, its tiles after that
+          T(hello, { o: 1 });
+          turns.forEach((tr, k) => {
+            const c = k === 0 ? -1 : commits[k - 1];
+            if (u >= RESET || k === 0) T(tr.ask, { o: 1 });
+            else enter(tr.ask, u, c + 0.25);
+            if (u >= RESET || k === 0) T(tr.ans, { o: 1 });
+            else enter(tr.ans, u, c + 0.42);
+            enter(tr.me, u, commits[k] ?? 99, 0.3);
+          });
+          enter(done, u, commits[3] + 0.4);
+          // a short dip when "Od nowa" clears the conversation
+          const dip = Math.sin(Math.PI * prog(u, RESET - 0.12, RESET + 0.18));
+          thread.style.opacity = 1 - 0.85 * dip;
+
+          // the brief beside it
+          let settled = 0;
+          rows.forEach((li, k) => {
+            const answered = u < RESET && step > k;
+            const now = step === k && step < 4;
+            const a = li.querySelector(".brief-a");
+            a.textContent = answered ? turns[k].text : now ? "Odpowiadasz teraz" : "Jeszcze nie padło";
+            a.classList.toggle("is-tentative", answered && !pick[turns[k].q.id]);
+            li.classList.toggle("is-now", now);
+            const flash = answered ? 1 - E.out2(prog(u, commits[k], commits[k] + 1.4)) : 0;
+            li.style.background = flash > 0.001 ? `color-mix(in srgb, var(--blue-soft) ${(flash * 100).toFixed(1)}%, transparent)` : "";
+            if (answered) settled++;
+          });
+          const prev = u >= RESET ? 0 : Math.max(0, settled - 1);
+          const land = settled === 0 || u >= RESET ? 1 : E.out3(prog(u, commits[settled - 1], commits[settled - 1] + 0.45));
+          const share = lerp(prev, settled, land) / 4;
+          bar.style.width = `${(share * 100).toFixed(2)}%`;
+          pct.textContent = `${Math.round(settled * 25)}%`;
+
+          const o = Math.min(E.out3(prog(u, 0.45, 0.75)), 1 - E.in3(prog(u, 11.55, 11.9)));
+          point(t, follow(keys, u), o, Object.values(C).map((c) => 8 + c));
+        };
+      });
+
+      // ==================================================================
+      // 3. Agencja (21–32.5 s): the agency writes an AI command; the AI adds two clickable questions to "Sklep",
+      //    the result says what changed, and the undo button takes the whole command back.
+      // ==================================================================
+      scene("agencja", 21, 32.5, (root) => {
+        const L = 11.5, S = 1.55, PW = 860, PH = 540;
+        const scr = screen(root, PW, PH, S);
+        const panel = el("div", "film-agency fill", scr);
+        const sec = D.agency.section;
+        panel.innerHTML =
+          `<div class="agency-head"><h2>${esc(D.agency.client)}</h2></div>` +
+          `<div class="agency-scroll"><div class="agency-list"><section class="section">` +
+          `<header class="section-head"><span class="section-icon tone-5">${sec.icon}</span><div class="section-titles"><h2 class="section-title">${esc(sec.title)}</h2><p class="section-meta"></p></div></header>` +
+          `<div class="section-fields">${D.agency.cards.join("")}${D.agency.added.map((c) => `<div class="added">${c}</div>`).join("")}</div>` +
+          `</section></div></div>` +
+          `<form class="dock"><div class="enter result-wrap"><div class="ai-result" role="status"><p>Dodałem dwa pytania o wysyłkę za granicę do sekcji „Sklep”.</p><ul>` +
+          D.agency.addedLabels.map((l, i) => `<li>Dodano pole „${esc(l)}” (${["f_kraje", "f_zwroty"][i]}) w sekcji „Sklep”.</li>`).join("") +
+          `</ul><button type="button" class="icon-btn ai-result-close">${D.icons.close}</button></div></div>` +
+          `<div class="bar"><span class="bar-lead tone-5">${D.icons.wand}</span><label class="bar-field"><input placeholder="Napisz AI, co dodać lub zmienić w pytaniach"></label>` +
+          `<button type="button" class="bar-icon-btn" disabled>${D.icons.undo}</button>` +
+          `<button class="btn-send" disabled><span class="btn-send-label">Wykonaj</span><span class="btn-send-icon">${D.icons.send}</span></button></div></form>`;
+        const q = (s) => panel.querySelector(s);
+        const list = q(".agency-list"), area = q(".agency-scroll"), meta = q(".section-meta");
+        const added = [...panel.querySelectorAll(".added")];
+        const result = q(".result-wrap"), close = q(".ai-result-close");
+        const barEl = q(".bar"), lead = q(".bar-lead"), input = q(".bar-field input"), undo = q(".bar-icon-btn"), send = q(".btn-send"), label = q(".btn-send-label");
+        const COMMAND = "Dodaj pytania o wysyłkę za granicę";
+
+        const C = { focus: 1.0, send: 3.4, close: 8.4, undo: 9.1 };
+        const TYPE = [1.15, 2.75], DONE = 4.6;
+        // state: 0 before the command, 1 with the new questions; the result box shows from DONE until closed
+        const hasNew = (v) => v >= DONE && v < C.undo + 0.1;
+        const hasResult = (v) => v >= DONE && v < C.close + 0.1;
+        const apply = (v) => {
+          added.forEach((a) => show(a, hasNew(v)));
+          show(result, hasResult(v));
+          meta.textContent = `0 z ${D.agency.section.count + (hasNew(v) ? 2 : 0)} odpowiedzi`;
+        };
+        apply(DONE + 0.5);
+        const first = added[0], last = added[added.length - 1];
+        const scrollNew = Math.min(first.offsetTop - 14, last.offsetTop + last.offsetHeight - area.clientHeight + 20);
+        const P = {
+          input: (() => { const p = at(scr, input, 0.3, 0.5); return [p.x, p.y]; })(),
+          send: (() => { const p = at(scr, send, 0.4, 0.55); return [p.x, p.y]; })(),
+          close: (() => { const p = at(scr, close, 0.5, 0.55); return [p.x, p.y]; })(),
+        };
+        apply(C.close + 0.5);
+        P.undo = (() => { const p = at(scr, undo, 0.5, 0.55); return [p.x, p.y]; })();
+        apply(0);
+        const keys = [
+          [0.35, P.input[0] + 120, P.input[1] - 150],
+          [0.9, ...P.input],
+          [2.85, P.input[0] + 40, P.input[1] + 26],
+          [3.3, ...P.send],
+          [7.85, ...P.send],
+          [8.3, ...P.close],
+          [8.6, ...P.close],
+          [9.0, ...P.undo],
+          [10.7, P.undo[0] + 40, P.undo[1] + 40],
+        ];
+        // Inputs show no caret without real focus: one is drawn after the typed text.
+        const fieldEl = q(".bar-field");
+        fieldEl.style.position = "relative";
+        const caret = el("i", null, fieldEl);
+        caret.style.cssText = "position:absolute;left:4px;top:50%;width:2px;height:20px;margin-top:-10px;border-radius:1px;background:var(--ink)";
+        const inputFont = getComputedStyle(input).font;
+        const caretAt = (s) => (s ? measure(s, inputFont).w : 0);
+        const point = makePointer(scr);
+        Object.values(C).forEach((c) => cue(21 + c, "click"));
+
+        return (t) => {
+          const v = t - 21;
+          apply(v);
+          // typing, with the bar focused
+          const focused = v >= C.focus && v < C.send;
+          barEl.style.borderColor = focused ? "var(--focus)" : "";
+          barEl.style.boxShadow = focused ? "var(--focus-ring), var(--shadow-lift)" : "";
+          const typed = COMMAND.slice(0, Math.round(COMMAND.length * prog(v, TYPE[0], TYPE[1])));
+          const busy = v >= C.send && v < DONE;
+          input.value = v >= DONE || v < TYPE[0] ? "" : typed;
+          input.disabled = busy;
+          barEl.classList.toggle("is-busy", busy);
+          label.textContent = busy ? "AI pracuje…" : "Wykonaj";
+          send.disabled = !(input.value && !busy);
+          // the app's pulse-soft on the wand while the AI works, computed from t
+          const pulse = busy ? (1 - Math.cos(((v - C.send) / 1.4) * 2 * Math.PI)) / 2 : 0;
+          T(lead, { s: 1 - 0.06 * pulse, o: 1 - 0.45 * pulse });
+          undo.disabled = !hasNew(v);
+          // the result box and the new questions enter; the list scrolls to them, and back after undo
+          enter(result, v, DONE, 0.35);
+          if (v >= C.close) result.style.opacity = 1 - prog(v, C.close, C.close + 0.1);
+          added.forEach((a, i) => {
+            enter(a, v, DONE + 0.12 + i * 0.1, 0.45);
+            if (v >= C.undo) a.style.opacity = 1 - prog(v, C.undo, C.undo + 0.1);
+            const ring = 1 - E.out2(prog(v, DONE + 1.2, DONE + 3.2));
+            a.firstElementChild.style.boxShadow = `0 0 0 2px color-mix(in srgb, var(--blue) ${(ring * 100).toFixed(1)}%, transparent), var(--shadow-card)`;
+          });
+          // a long glide, so the fastest point stays under ~30 px per frame (references/render.md)
+          const sc = hasNew(v) ? scrollNew * E.io3(prog(v, DONE + 0.1, DONE + 1.7)) : v > C.undo ? scrollNew * (1 - E.io3(prog(v, C.undo + 0.1, C.undo + 1.3))) : 0;
+          list.style.transform = `translateY(${(-sc).toFixed(2)}px)`;
+          // the caret blinks from t while the bar is focused
+          caret.style.opacity = focused && (v < TYPE[1] || Math.floor(v * 2.4) % 2 === 0) ? 1 : 0;
+          if (focused) {
+            const p = caretAt(typed);
+            caret.style.transform = `translate(${p.toFixed(2)}px, 0)`;
+          }
+          const o = Math.min(E.out3(prog(v, 0.35, 0.65)), 1 - E.in3(prog(v, 10.35, 10.7)));
+          point(t, follow(keys, v), o, Object.values(C).map((c) => 21 + c));
+        };
+      });
+
+      // ------------------------------------------------------------------
+      // No grain or vignette: the screens are flat interfaces (references/craft.md, texture).
+      // ------------------------------------------------------------------
+      function makeGrain() {}
 
       // ------------------------------------------------------------------
       // Render and readiness
       // ------------------------------------------------------------------
+      // ?only=<scene>: one chapter alone, its time wrapped into a loop (the README WebPs)
+      const ONLY = Q.get("only") ? defs.find((d) => d.name === Q.get("only")) : null;
+      if (Q.get("only") && !ONLY) console.error(`?only=${Q.get("only")}: no such scene (${defs.map((d) => d.name).join(", ")})`);
+      const LENGTH = ONLY ? (ONLY.t1 - ONLY.t0) / SPEED : DURATION;
       function render(time) {
-        const t = time * SPEED;
+        let t = time * SPEED;
+        if (ONLY) {
+          const L = ONLY.t1 - ONLY.t0;
+          t = ONLY.t0 + (((t % L) + L) % L);
+        }
         for (const s of scenes) {
           const on = t >= s.t0 && t < s.t1;
           s.root.style.display = on ? "block" : "none";
           if (on) s.update(t);
         }
-        const gf = Math.floor(time * 24);
-        grain.style.transform = `translate(${-hash(gf) * 64}px,${-hash(gf + 99) * 64}px)`;
       }
 
-      window.__DURATION = DURATION;
+      window.__DURATION = LENGTH;
       window.__SUB = SUB;
       window.__SIZE = { w: W, h: H };
       window.__render = render;
@@ -696,15 +1077,15 @@
         let last = performance.now();
         addEventListener("keydown", (e) => {
           if (e.code === "Space") playing = !playing;
-          if (e.code === "ArrowRight") t = Math.min(DURATION, t + 1);
+          if (e.code === "ArrowRight") t = Math.min(LENGTH, t + 1);
           if (e.code === "ArrowLeft") t = Math.max(0, t - 1);
         });
-        hud.addEventListener("click", (e) => (t = (e.clientX / innerWidth) * DURATION));
+        hud.addEventListener("click", (e) => (t = (e.clientX / innerWidth) * LENGTH));
         const loop = (now) => {
-          if (playing) t = (t + (now - last) / 1000) % DURATION;
+          if (playing) t = (t + (now - last) / 1000) % LENGTH;
           last = now;
           render(t);
-          bar.style.width = `${(t / DURATION) * 100}%`;
+          bar.style.width = `${(t / LENGTH) * 100}%`;
           label.textContent = `${t.toFixed(2)} s`;
           requestAnimationFrame(loop);
         };

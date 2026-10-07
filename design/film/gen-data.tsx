@@ -1,7 +1,9 @@
 // Markup for the film, rendered from the app's own components and the "Strona WWW" template,
 // so the film shows real questions, real icons and real cards. Writes data.js next to index.html.
+// Run from the repository root after a change to the template, the cards or the icons:
 //
-//   node gen-data.mjs   (see the build line in README of this folder)
+//   node_modules/.bin/esbuild design/film/gen-data.tsx --bundle --platform=node --format=esm --jsx=automatic \
+//     --packages=external --outfile=design/film/.gen-data.mjs && node design/film/.gen-data.mjs && rm design/film/.gen-data.mjs
 
 import {
   IconArrowBackUp,
