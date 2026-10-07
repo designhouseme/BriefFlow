@@ -738,6 +738,7 @@ textarea.input {
 .orbit {
   position: absolute;
   inset: 0;
+  pointer-events: none;
 }
 
 .orbit-chip {
@@ -757,7 +758,34 @@ textarea.input {
   font-weight: 600;
   white-space: nowrap;
   will-change: transform, opacity;
+  /* Odpowiedzi da się złapać i rzucić (Landing.tsx, HeroStage) */
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: box-shadow 0.2s;
 }
+
+.orbit-chip:hover {
+  box-shadow: var(--shadow-pop);
+}
+
+.orbit-chip.is-held {
+  cursor: grabbing;
+  box-shadow: var(--shadow-pop);
+}
+
+/* Odłamki, gdy odpowiedź wpadnie do kuli */
+.orbit-bit {
+  position: absolute;
+  z-index: 5;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+
 
 .orbit-chip .pill-icon {
   width: 28px;

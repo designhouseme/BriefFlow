@@ -377,67 +377,296 @@ const ORBIT: Chip[] = [
 ORBIT.splice(2, 0, { label: "Nie wiem", Icon: IconHelpCircle, tone: "" });
 ORBIT.splice(7, 0, { label: "Pomiń na razie", Icon: IconClockPause, tone: "" });
 
+/**
+ * Odpowiedzi krążą po pochylonej elipsie; te z tyłu są mniejsze, bledsze i chowają się za kulą.
+ * Każdą można złapać i przesunąć albo rzucić: leci z bezwładnością, odbija się od krawędzi pierwszego
+ * ekranu i po chwili wraca na orbitę. Wrzucona do kuli rozpryskuje się, kula błyska i odpowiedź
+ * po chwili wraca na swoje miejsce.
+ */
 function HeroStage() {
+  const stage = useRef<HTMLDivElement>(null);
   const orbit = useRef<HTMLDivElement>(null);
+  const pulse = useRef<(() => void) | null>(null);
 
-  // Odpowiedzi jadą po pochylonej elipsie. Te z tyłu (górna połowa) są mniejsze, bledsze i chowają się za kulą.
   useLayoutEffect(() => {
+    const stageEl = stage.current;
     const box = orbit.current;
-    if (!box) return;
+    const hero = stageEl?.parentElement;
+    if (!stageEl || !box || !hero) return;
+    const still = reducedMotion();
     const tilt = -0.16;
+
+    type Mode = "orbit" | "held" | "free" | "return" | "gone" | "spawn";
+    type Body = {
+      el: HTMLElement;
+      mode: Mode;
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      since: number;
+      grabX: number;
+      grabY: number;
+      pointer: number;
+      trail: { x: number; y: number; t: number }[];
+    };
+    const bodies: Body[] = Array.from(box.children as HTMLCollectionOf<HTMLElement>).map((el) => ({
+      el,
+      mode: "orbit",
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      since: 0,
+      grabX: 0,
+      grabY: 0,
+      pointer: -1,
+      trail: [],
+    }));
+
+    let clock = 0;
+    let last = performance.now();
     let frame = 0;
     let visible = true;
 
-    const place = (seconds: number) => {
-      const chips = Array.from(box.children as HTMLCollectionOf<HTMLElement>).filter((c) => c.offsetParent !== null);
+    /** Miejsce odpowiedzi na orbicie: pozycja, głębia (0 z tyłu, 1 z przodu). */
+    const slot = (i: number, n: number, chip: HTMLElement) => {
+      const angle = (i / n) * Math.PI * 2 + clock * 0.07;
       const a = box.clientWidth * 0.47;
       const b = box.clientHeight * 0.4;
-      chips.forEach((chip, i) => {
-        const angle = (i / chips.length) * Math.PI * 2 + seconds * 0.07;
-        const x0 = Math.cos(angle) * a;
-        const y0 = Math.sin(angle) * b;
-        const depth = (Math.sin(angle) + 1) / 2;
-        const scale = 0.8 + depth * 0.2;
-        // Etykieta zawsze cała na ekranie: na wąskim końce elipsy się spłaszczają.
-        const room = box.clientWidth / 2 - (chip.offsetWidth * scale) / 2 - 6;
-        const x = Math.max(-room, Math.min(room, x0 * Math.cos(tilt) - y0 * Math.sin(tilt)));
-        const y = x0 * Math.sin(tilt) + y0 * Math.cos(tilt);
-        chip.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
-        chip.style.opacity = (0.45 + depth * 0.55).toFixed(2);
-        chip.style.zIndex = depth > 0.5 ? "3" : "1";
-      });
+      const x0 = Math.cos(angle) * a;
+      const y0 = Math.sin(angle) * b;
+      const depth = (Math.sin(angle) + 1) / 2;
+      const scale = 0.8 + depth * 0.2;
+      // Etykieta zawsze cała na ekranie: na wąskim końce elipsy się spłaszczają.
+      const room = box.clientWidth / 2 - (chip.offsetWidth * scale) / 2 - 6;
+      const x = Math.max(-room, Math.min(room, x0 * Math.cos(tilt) - y0 * Math.sin(tilt)));
+      const y = x0 * Math.sin(tilt) + y0 * Math.cos(tilt);
+      return { x, y, scale, opacity: 0.45 + depth * 0.55, z: depth > 0.5 ? 3 : 1 };
     };
 
-    if (reducedMotion()) {
-      place(0);
-      const onResize = () => place(0);
-      window.addEventListener("resize", onResize);
-      return () => window.removeEventListener("resize", onResize);
+    const render = (b: Body, x: number, y: number, scale: number, opacity: number, z: number) => {
+      b.el.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
+      b.el.style.opacity = opacity.toFixed(2);
+      b.el.style.zIndex = String(z);
+    };
+
+    const center = () => {
+      const r = box.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    };
+    const orbRadius = () => {
+      const orb = stageEl.querySelector<HTMLElement>(".hero-orb canvas, .hero-orb .orb");
+      if (!orb) return 0;
+      const r = orb.getBoundingClientRect();
+      return orb.tagName === "CANVAS" ? r.height * 0.21 : r.height / 2;
+    };
+
+    /** Rozprysk w kolorach odpowiedzi i kuli. */
+    const burst = (b: Body) => {
+      const tone = getComputedStyle(b.el).getPropertyValue("--tone-fg").trim() || "#3d5bf0";
+      const colors = [tone, "#7e97ff", "#c9d6ff", "#3f5bf0"];
+      for (let i = 0; i < 18; i++) {
+        const bit = document.createElement("span");
+        bit.className = "orbit-bit";
+        bit.style.background = colors[i % colors.length];
+        bit.style.left = `calc(50% + ${b.x}px)`;
+        bit.style.top = `calc(50% + ${b.y}px)`;
+        box.appendChild(bit);
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 70 + Math.random() * 140;
+        bit
+          .animate(
+            [
+              { transform: "translate(-50%, -50%) scale(1)", opacity: 1 },
+              {
+                transform: `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist}px)) scale(0.2) rotate(${Math.random() * 360}deg)`,
+                opacity: 0,
+              },
+            ],
+            { duration: 650 + Math.random() * 450, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+          )
+          .finished.then(() => bit.remove(), () => bit.remove());
+      }
+    };
+
+    const explode = (b: Body, now: number) => {
+      b.mode = "gone";
+      b.since = now;
+      b.el.classList.remove("is-held");
+      b.el.style.opacity = "0";
+      b.el.style.pointerEvents = "none";
+      pulse.current?.();
+      if (!still) burst(b);
+    };
+
+    const inOrb = (b: Body) => Math.hypot(b.x, b.y) < orbRadius() * 0.85;
+
+    const loop = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      if (visible && !document.hidden) {
+        if (!still) clock += dt;
+        const shown = bodies.filter((b) => b.el.offsetParent !== null);
+        const heroBox = hero.getBoundingClientRect();
+        const c = center();
+        shown.forEach((b, i) => {
+          const s = slot(i, shown.length, b.el);
+          const halfW = b.el.offsetWidth / 2;
+          const halfH = b.el.offsetHeight / 2;
+          const minX = heroBox.left - c.x + halfW;
+          const maxX = heroBox.right - c.x - halfW;
+          const minY = heroBox.top - c.y + halfH;
+          const maxY = heroBox.bottom - c.y - halfH;
+          switch (b.mode) {
+            case "orbit":
+              b.x = s.x;
+              b.y = s.y;
+              render(b, s.x, s.y, s.scale, s.opacity, s.z);
+              break;
+            case "held":
+              render(b, b.x, b.y, 1.08, 1, 7);
+              break;
+            case "free": {
+              b.x += b.vx * dt;
+              b.y += b.vy * dt;
+              const friction = Math.pow(0.22, dt);
+              b.vx *= friction;
+              b.vy *= friction;
+              if (b.x < minX || b.x > maxX) {
+                b.x = Math.max(minX, Math.min(maxX, b.x));
+                b.vx *= -0.62;
+              }
+              if (b.y < minY || b.y > maxY) {
+                b.y = Math.max(minY, Math.min(maxY, b.y));
+                b.vy *= -0.62;
+              }
+              if (inOrb(b)) {
+                explode(b, now);
+                break;
+              }
+              const speed = Math.hypot(b.vx, b.vy);
+              if ((speed < 30 && now - b.since > 900) || now - b.since > 4500) {
+                b.mode = "return";
+                b.since = now;
+              }
+              render(b, b.x, b.y, 1, 1, 6);
+              break;
+            }
+            case "return": {
+              // Sprężyna do miejsca na orbicie; po dojściu odpowiedź znowu krąży.
+              const ax = (s.x - b.x) * 22 - b.vx * 9;
+              const ay = (s.y - b.y) * 22 - b.vy * 9;
+              b.vx += ax * dt;
+              b.vy += ay * dt;
+              b.x += b.vx * dt;
+              b.y += b.vy * dt;
+              const near = Math.hypot(s.x - b.x, s.y - b.y);
+              if (near < 1.5 && Math.hypot(b.vx, b.vy) < 25) b.mode = "orbit";
+              const k = Math.min(1, near / 120);
+              render(b, b.x, b.y, s.scale + (1 - s.scale) * k, s.opacity + (1 - s.opacity) * k, near > 40 ? 6 : s.z);
+              break;
+            }
+            case "gone":
+              if (now - b.since > 1500) {
+                b.mode = "spawn";
+                b.since = now;
+                b.el.style.pointerEvents = "";
+              }
+              break;
+            case "spawn": {
+              const p = Math.min(1, (now - b.since) / 450);
+              const grow = 1 - Math.pow(1 - p, 3);
+              b.x = s.x;
+              b.y = s.y;
+              render(b, s.x, s.y, s.scale * grow, s.opacity * grow, s.z);
+              if (p >= 1) b.mode = "orbit";
+              break;
+            }
+          }
+        });
+      }
+      frame = requestAnimationFrame(loop);
+    };
+
+    const find = (el: EventTarget | null) => bodies.find((b) => b.el === el);
+    const toStage = (e: PointerEvent) => {
+      const c = center();
+      return { x: e.clientX - c.x, y: e.clientY - c.y };
+    };
+    const onDown = (e: PointerEvent) => {
+      const b = find(e.currentTarget);
+      if (!b || b.mode === "gone" || b.mode === "spawn") return;
+      e.preventDefault();
+      try {
+        b.el.setPointerCapture(e.pointerId);
+      } catch {
+        /* wskaźnik już nieaktywny: przeciąganie i tak działa, dopóki kursor jest nad etykietą */
+      }
+      const p = toStage(e);
+      b.grabX = b.x - p.x;
+      b.grabY = b.y - p.y;
+      b.pointer = e.pointerId;
+      b.mode = "held";
+      b.trail = [{ x: b.x, y: b.y, t: performance.now() }];
+      b.el.classList.add("is-held");
+    };
+    const onMove = (e: PointerEvent) => {
+      const b = find(e.currentTarget);
+      if (!b || b.mode !== "held" || b.pointer !== e.pointerId) return;
+      const p = toStage(e);
+      const now = performance.now();
+      b.x = p.x + b.grabX;
+      b.y = p.y + b.grabY;
+      b.trail.push({ x: b.x, y: b.y, t: now });
+      while (b.trail.length > 2 && now - b.trail[0].t > 90) b.trail.shift();
+    };
+    const onUp = (e: PointerEvent) => {
+      const b = find(e.currentTarget);
+      if (!b || b.mode !== "held" || b.pointer !== e.pointerId) return;
+      const now = performance.now();
+      b.el.classList.remove("is-held");
+      b.pointer = -1;
+      if (inOrb(b)) return explode(b, now);
+      const first = b.trail[0];
+      const span = Math.max((now - first.t) / 1000, 0.016);
+      const cap = 2600;
+      b.vx = Math.max(-cap, Math.min(cap, (b.x - first.x) / span));
+      b.vy = Math.max(-cap, Math.min(cap, (b.y - first.y) / span));
+      b.since = now;
+      b.mode = still ? "return" : "free";
+    };
+
+    for (const b of bodies) {
+      b.el.addEventListener("pointerdown", onDown);
+      b.el.addEventListener("pointermove", onMove);
+      b.el.addEventListener("pointerup", onUp);
+      b.el.addEventListener("pointercancel", onUp);
     }
     const observer = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
     });
-    observer.observe(box);
-    const start = performance.now();
-    const loop = (now: number) => {
-      if (visible && !document.hidden) place((now - start) / 1000);
-      frame = requestAnimationFrame(loop);
-    };
-    place(0);
+    observer.observe(stageEl);
     frame = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      for (const b of bodies) {
+        b.el.removeEventListener("pointerdown", onDown);
+        b.el.removeEventListener("pointermove", onMove);
+        b.el.removeEventListener("pointerup", onUp);
+        b.el.removeEventListener("pointercancel", onUp);
+      }
     };
   }, []);
 
   return (
-    <div className="hero-stage" aria-hidden>
+    <div className="hero-stage" ref={stage} aria-hidden>
       <svg className="hero-orbit-line" viewBox="-100 -100 200 200" preserveAspectRatio="none">
         <ellipse cx="0" cy="0" rx="94" ry="80" transform="rotate(-9)" />
       </svg>
       <div className="hero-orb">
-        <ShaderOrb size={460} maxDpr={1.5} />
+        <ShaderOrb size={460} maxDpr={1.5} pulseRef={pulse} />
       </div>
       <div className="orbit" ref={orbit}>
         {ORBIT.map(({ label, Icon, tone }) => (

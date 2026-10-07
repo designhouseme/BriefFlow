@@ -13,6 +13,7 @@ const FRAGMENT = `
 precision highp float;
 uniform vec2 uRes;
 uniform float uTime;
+uniform float uPulse;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
@@ -29,7 +30,8 @@ float fbm(vec2 p) {
 void main() {
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
   float r = length(uv);
-  float R = 0.21;
+  // Puls (coś wpadło do kuli): kula na moment rośnie, jaśnieje i wypuszcza falę.
+  float R = 0.21 * (1.0 + uPulse * 0.07);
   float t = uTime * 0.11;
 
   vec3 deep = vec3(0.247, 0.357, 0.941);
@@ -55,10 +57,13 @@ void main() {
     float spec = pow(clamp(dot(reflect(-L, n), vec3(0.0, 0.0, 1.0)), 0.0, 1.0), 28.0);
     col += spec * 0.22;
     col = mix(col, violet, pow(1.0 - z, 3.0) * 0.45);
+    col = mix(col, light, uPulse * 0.4);
     alpha = smoothstep(R, R - 0.004, r);
   }
   // Poświata w tle: szybko zanika, lekko oddycha.
-  float glow = exp(-pow(max(r - R, 0.0) / 0.16, 1.3)) * (0.3 + 0.07 * sin(uTime * 0.55));
+  float glow = exp(-pow(max(r - R, 0.0) / 0.16, 1.3)) * (0.3 + 0.07 * sin(uTime * 0.55) + uPulse * 0.45);
+  float wave = R + (1.0 - uPulse) * 0.2;
+  glow += exp(-pow((r - wave) / 0.012, 2.0)) * uPulse * 0.7;
   // Do zera przed krawędzią płótna, inaczej widać jaśniejszy kwadrat.
   glow *= smoothstep(0.5, 0.36, r);
   vec3 outCol = col * alpha + mid * glow * (1.0 - alpha);
@@ -79,7 +84,18 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
  * `size` to bok płótna (z poświatą); sama kula ma ok. 42% tej szerokości. Duże płótno (hero) kosztuje
  * kilka razy więcej, więc gęstość pikseli ma limit (`maxDpr`), a rysowanie staje, gdy płótno zjedzie z ekranu.
  */
-export function ShaderOrb({ size = 240, className = "", maxDpr = 2 }: { size?: number; className?: string; maxDpr?: number }) {
+export function ShaderOrb({
+  size = 240,
+  className = "",
+  maxDpr = 2,
+  pulseRef,
+}: {
+  size?: number;
+  className?: string;
+  maxDpr?: number;
+  /** Dostaje funkcję, która wywołuje puls kuli (np. gdy coś do niej wpadnie). */
+  pulseRef?: React.MutableRefObject<(() => void) | null>;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [fallback, setFallback] = useState(false);
 
@@ -109,11 +125,15 @@ export function ShaderOrb({ size = 240, className = "", maxDpr = 2 }: { size?: n
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.uniform2f(gl.getUniformLocation(program, "uRes"), canvas.width, canvas.height);
     const uTime = gl.getUniformLocation(program, "uTime");
+    const uPulse = gl.getUniformLocation(program, "uPulse");
+    let pulseAt = -1e9;
+    if (pulseRef) pulseRef.current = () => (pulseAt = performance.now());
     gl.clearColor(0, 0, 0, 0);
 
     const draw = (seconds: number) => {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniform1f(uTime, seconds);
+      gl.uniform1f(uPulse, Math.exp(-((performance.now() - pulseAt) / 1000) * 3.2));
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
@@ -136,8 +156,9 @@ export function ShaderOrb({ size = 240, className = "", maxDpr = 2 }: { size?: n
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      if (pulseRef) pulseRef.current = null;
     };
-  }, [size, maxDpr]);
+  }, [size, maxDpr, pulseRef]);
 
   if (fallback) return <Orb size={Math.round(size * 0.42)} className={className} />;
   return <canvas ref={ref} className={`shader-orb ${className}`} style={{ width: size, height: size }} aria-hidden />;
