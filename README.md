@@ -73,3 +73,8 @@ public/brand/              znak (orb) i grafika do podglądu linku
 - Brief widzi tylko osoba, która go utworzyła. Wspólnych briefów zespołu jeszcze nie ma.
 - Limit kodów jest liczony na adres, nie na IP.
 
+## Licencja
+
+Kod jest udostępniony na licencji [Apache 2.0](LICENSE). Kto rozpowszechnia kod albo pracę na nim opartą, musi zachować plik [NOTICE](NOTICE) z informacją o autorstwie (Design House).
+
+Licencja nie obejmuje nazwy i logo Design House (`public/brand/dh/`, `public/favicon.*`, `public/apple-touch-icon.png`). To znaki Design House; w forku podmień je na własne.
