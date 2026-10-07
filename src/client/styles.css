@@ -656,9 +656,8 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 24px;
-  width: min(100%, 1240px);
-  margin: 0 auto;
-  padding: 14px 24px;
+  /* Tło na całą szerokość okna (nad ciemnym pasem nie widać boków), treść w kolumnie 1240 px */
+  padding: 14px max(24px, calc((100% - 1192px) / 2));
   background: var(--bg);
 }
 
@@ -784,8 +783,6 @@ textarea.input {
   border-radius: 3px;
   pointer-events: none;
 }
-
-
 
 .orbit-chip .pill-icon {
   width: 28px;
