@@ -77,10 +77,17 @@ export interface MenuItem {
 /** Menu „…” przy elemencie listy. Strzałki przechodzą między pozycjami. */
 export function Menu({ label, items, className = "" }: { label: string; items: MenuItem[]; className?: string }) {
   const [open, setOpen] = useState(false);
+  // Przy dolnej krawędzi okna menu otwiera się w górę, żeby nie wyjść poza listę.
+  const [up, setUp] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const close = () => setOpen(false);
   useDismiss(open, close, root);
+  const toggle = () => {
+    const box = root.current?.getBoundingClientRect();
+    if (box) setUp(innerHeight - box.bottom < 180 && box.top > innerHeight - box.bottom);
+    setOpen((o) => !o);
+  };
 
   useEffect(() => {
     if (open) list.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
@@ -97,11 +104,11 @@ export function Menu({ label, items, className = "" }: { label: string; items: M
 
   return (
     <div className={`menu ${className} ${open ? "is-open" : ""}`} ref={root}>
-      <button className="icon-btn menu-trigger" aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button className="icon-btn menu-trigger" aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
         <IconDots size={17} aria-hidden />
       </button>
       {open && (
-        <ul className="menu-list" role="menu" ref={list} onKeyDown={onKeyDown}>
+        <ul className={`menu-list ${up ? "is-up" : ""}`} role="menu" ref={list} onKeyDown={onKeyDown}>
           {items.map((item) => (
             <li key={item.label} role="none">
               <button

@@ -2029,6 +2029,12 @@ textarea.input {
   position: relative;
 }
 
+/* Otwarte menu nad sąsiednimi wierszami: przesunięcie (transform) przycisku w liście tworzy
+   osobny kontekst warstw, więc bez tego lista chowała się pod kolejnymi briefami. */
+.menu.is-open {
+  z-index: 30;
+}
+
 .menu-list {
   position: absolute;
   top: calc(100% + 4px);
@@ -2043,6 +2049,11 @@ textarea.input {
   background: var(--card);
   box-shadow: var(--shadow-pop);
   animation: pop-in 0.16s var(--ease) both;
+}
+
+.menu-list.is-up {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 .menu-list button {
