@@ -1,6 +1,6 @@
 # Logowanie i dane na Cloudflare
 
-Opis tego, jak działa logowanie i co dokładnie Briefing zapisuje. Źródłem prawdy jest kod: `src/server/auth.ts`, `src/server/accounts.ts`, `src/server/brief-agent.ts`, `src/server/emails.ts`, `src/server/ai.ts`. Zmiana w tych plikach oznacza zmianę tego dokumentu i polityki prywatności (`src/client/Legal.tsx`).
+Opis tego, jak działa logowanie i co dokładnie BriefFlow zapisuje. Źródłem prawdy jest kod: `src/server/auth.ts`, `src/server/accounts.ts`, `src/server/brief-agent.ts`, `src/server/emails.ts`, `src/server/ai.ts`. Zmiana w tych plikach oznacza zmianę tego dokumentu i polityki prywatności (`src/client/Legal.tsx`).
 
 ## Dwie role, dwa sposoby wejścia
 

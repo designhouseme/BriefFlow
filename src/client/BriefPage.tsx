@@ -799,7 +799,7 @@ export function ClientBriefPage({ id, token }: { id: string; token: string }) {
         <div className="empty">
           <Orb size={56} />
           <h2>To link do edycji briefu</h2>
-          <p>Briefy edytujesz teraz w aplikacji DH Briefing, po zalogowaniu adresem firmowym.</p>
+          <p>Briefy edytujesz teraz w aplikacji BriefFlow, po zalogowaniu adresem firmowym.</p>
           <a className="btn btn-primary" href="/app">
             Otwórz aplikację
           </a>

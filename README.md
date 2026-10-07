@@ -1,4 +1,4 @@
-# DH Briefing
+# BriefFlow
 
 Brief z klientem bez formularzy do wypisywania. Strona startowa prowadzi od razu do aplikacji: osoba z agencji podaje adres firmowy, wpisuje 6 cyfr z maila i tworzy briefy. Każdy brief ma **link dla klienta**: klient klika odpowiedzi, może dać „Nie wiem” albo „Pomiń na razie” i wrócić później, bez zakładania konta.
 

@@ -1,4 +1,4 @@
-// Maile Briefingu wyglądają jak aplikacja: logo Design House z podpisem „Briefing”, kula jako awatar,
+// Maile BriefFlow wyglądają jak aplikacja: logo Design House z podpisem „BriefFlow”, kula jako awatar,
 // wiadomość w dymku, kafelki i pigułki jak w rozmowie, przycisk jak w pasku na dole aplikacji.
 // Każdy mail ma też wersję tekstową. Lokalnie maile idą do Mailpita, na produkcji przez Cloudflare Email Service.
 
@@ -19,7 +19,7 @@ const INK_3 = "#686e7b";
 const PANEL = "#f4f5f8";
 const LINE = "#e9ebef";
 
-/** Wiadomość od Briefingu: kula jako awatar i dymek, jak pytanie w rozmowie. */
+/** Wiadomość od BriefFlow: kula jako awatar i dymek, jak pytanie w rozmowie. */
 function bubble(origin: string, html: string) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
 <td width="40" valign="bottom" style="padding-right:10px"><img src="${esc(origin)}/brand/orb-email.png" width="36" height="36" alt="" style="display:block;border:0"></td>
@@ -56,7 +56,7 @@ function layout(origin: string, preheader: string, body: string) {
 <table role="presentation" cellpadding="0" cellspacing="0"><tr>
 <td><img src="${esc(origin)}/brand/dh/logo-email.png" width="154" height="19" alt="Design House" style="display:block;border:0"></td>
 <td style="padding:0 12px"><span style="display:block;width:1px;height:18px;background:#dcdfe5;font-size:0;line-height:0">&nbsp;</span></td>
-<td style="font-size:15px;font-weight:600;color:${INK_2}">Briefing</td>
+<td style="font-size:15px;font-weight:600;color:${INK_2}">BriefFlow</td>
 </tr></table>
 </td></tr>
 <tr><td style="background:#ffffff;border:1px solid ${LINE};border-radius:24px;padding:28px 28px 30px">
@@ -92,9 +92,9 @@ ${pill("Ważny 10 minut", "#e8eeff", "#3550d4")}${pill("Działa raz", "#e2f4ea",
 <p style="margin:18px 0 0 50px;font-size:13.5px;line-height:1.55;color:${INK_3}">Jeśli to nie Ty prosiłeś o kod, zignoruj tę wiadomość: bez kodu nikt się nie zaloguje.</p>`;
   return {
     to: input.to,
-    subject: `${spaced} to Twój kod do Briefingu`,
+    subject: `${spaced} to Twój kod do BriefFlow`,
     html: layout(input.origin, `Kod logowania: ${spaced}. Ważny 10 minut.`, body),
-    text: `Twój kod logowania do Briefingu: ${spaced}\n\nWpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut i działa tylko raz.\nJeśli to nie Ty prosiłeś o kod, zignoruj tę wiadomość.${footerText}`,
+    text: `Twój kod logowania do BriefFlow: ${spaced}\n\nWpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut i działa tylko raz.\nJeśli to nie Ty prosiłeś o kod, zignoruj tę wiadomość.${footerText}`,
   };
 }
 

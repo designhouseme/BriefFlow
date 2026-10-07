@@ -1,6 +1,6 @@
 // Marka Design House: znak i logotyp DH (pliki w public/brand/dh).
-// DH Briefing to produkt Design House: w nagłówkach stoi znak i logotyp DH, a niebieska kula zostaje
-// postacią Briefingu (awatar w rozmowie, powitania).
+// BriefFlow to produkt Design House: w nagłówkach stoi znak i logotyp DH, a niebieska kula zostaje
+// postacią BriefFlow (awatar w rozmowie, powitania).
 
 /** Znak: trzy zaokrąglone kwadraty stykające się narożnikami, promień stały niezależnie od wielkości. */
 export function DhMark({ className }: { className?: string }) {
@@ -37,7 +37,7 @@ export function BrandLockup({ className = "" }: { className?: string }) {
   return (
     <span className={`lockup ${className}`}>
       <Wordmark />
-      <span className="lockup-product">Briefing</span>
+      <span className="lockup-product">BriefFlow</span>
     </span>
   );
 }

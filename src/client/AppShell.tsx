@@ -140,7 +140,7 @@ function ThemeButton({ className, size }: { className: string; size: number }) {
 function Rail({ onBriefs }: { onBriefs: () => void }) {
   return (
     <nav className="rail" aria-label="Aplikacja">
-      <a className="rail-home" href="/app" onClick={(e) => onLinkClick(e, "/app")} aria-label="Design House Briefing, nowy brief">
+      <a className="rail-home" href="/app" onClick={(e) => onLinkClick(e, "/app")} aria-label="Design House BriefFlow, nowy brief">
         <DhTile size={40} />
       </a>
       <button className="rail-btn is-active" onClick={onBriefs} aria-label="Briefy" title="Briefy">

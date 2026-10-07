@@ -4,7 +4,7 @@ import { BrandLockup, Wordmark } from "./Brand";
 import { REPO_URL } from "./links";
 import { onLinkClick } from "./router";
 
-// Regulamin i polityka prywatności Briefingu. Opisują to, co aplikacja naprawdę robi (docs/dane-i-logowanie.md).
+// Regulamin i polityka prywatności BriefFlow. Opisują to, co aplikacja naprawdę robi (docs/dane-i-logowanie.md).
 // To wersje robocze do sprawdzenia przez prawnika; zmiana kodu, który dotyka danych, oznacza zmianę tych tekstów
 // i nową wersję w LEGAL_VERSION.
 
@@ -43,7 +43,7 @@ function LegalPage({ title, sections, other }: { title: string; sections: Sectio
   return (
     <div className="site legal">
       <header className="site-nav">
-        <a className="brand" href="/" aria-label="Design House Briefing, strona główna" onClick={(e) => onLinkClick(e, "/")}>
+        <a className="brand" href="/" aria-label="Design House BriefFlow, strona główna" onClick={(e) => onLinkClick(e, "/")}>
           <BrandLockup />
         </a>
         <a className="btn legal-back" href="/" onClick={(e) => onLinkClick(e, "/")}>
@@ -81,7 +81,7 @@ function LegalPage({ title, sections, other }: { title: string; sections: Sectio
         <a className="foot-brand" href="https://designhouse.me" aria-label="Design House">
           <Wordmark />
         </a>
-        <span>Briefing to narzędzie Design House. Briefy przechowujemy w UE.</span>
+        <span>BriefFlow to narzędzie Design House. Briefy przechowujemy w UE.</span>
       </footer>
     </div>
   );
@@ -95,7 +95,7 @@ const PRIVACY: Section[] = [
       <>
         <CompanyData role="Administrator" />
         <p>
-          Polityka dotyczy aplikacji Briefing, w której Design House przygotowuje briefy projektów z klientami. W sprawach
+          Polityka dotyczy aplikacji BriefFlow, w której Design House przygotowuje briefy projektów z klientami. W sprawach
           danych osobowych pisz na <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>.
         </p>
       </>
@@ -258,7 +258,7 @@ const TERMS: Section[] = [
       <>
         <CompanyData role="Usługodawca" />
         <p>
-          Regulamin określa zasady korzystania z aplikacji Briefing (dalej: Briefing), w której Design House przygotowuje z
+          Regulamin określa zasady korzystania z aplikacji BriefFlow, w której Design House przygotowuje z
           klientami briefy projektów.
         </p>
       </>
@@ -266,7 +266,7 @@ const TERMS: Section[] = [
   },
   {
     id: "kto",
-    title: "Kto korzysta z Briefingu",
+    title: "Kto korzysta z BriefFlow",
     body: (
       <ul>
         <li>
@@ -275,7 +275,7 @@ const TERMS: Section[] = [
         </li>
         <li>
           <strong>Klienci</strong> wchodzą przez link otrzymany od Design House i odpowiadają na pytania jednego briefu. Klient
-          nie zakłada konta i nie płaci za korzystanie z Briefingu.
+          nie zakłada konta i nie płaci za korzystanie z BriefFlow.
         </li>
       </ul>
     ),
@@ -324,7 +324,7 @@ const TERMS: Section[] = [
     title: "Dostępność i odpowiedzialność",
     body: (
       <p>
-        Dbamy o to, żeby Briefing działał bez przerw, ale mogą zdarzyć się przerwy techniczne, w tym po stronie Cloudflare.
+        Dbamy o to, żeby BriefFlow działał bez przerw, ale mogą zdarzyć się przerwy techniczne, w tym po stronie Cloudflare.
         Odpowiedzi zapisane przed przerwą zostają w briefie. Nie odpowiadamy za skutki udostępnienia linku do briefu
         osobom trzecim przez osobę, która go otrzymała.
       </p>
@@ -335,7 +335,7 @@ const TERMS: Section[] = [
     title: "Reklamacje",
     body: (
       <p>
-        Uwagi i reklamacje dotyczące działania Briefingu wysyłaj na <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>.
+        Uwagi i reklamacje dotyczące działania BriefFlow wysyłaj na <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>.
         Odpowiadamy w ciągu 14 dni.
       </p>
     ),
@@ -345,7 +345,7 @@ const TERMS: Section[] = [
     title: "Kod źródłowy i znaki",
     body: (
       <p>
-        Kod Briefingu jest udostępniony na licencji Apache 2.0 (<a href={REPO_URL}>repozytorium</a>), z obowiązkiem
+        Kod BriefFlow jest udostępniony na licencji Apache 2.0 (<a href={REPO_URL}>repozytorium</a>), z obowiązkiem
         zachowania informacji o autorstwie z pliku NOTICE. Licencja nie obejmuje nazwy i logo Design House.
       </p>
     ),

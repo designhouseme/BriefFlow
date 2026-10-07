@@ -91,7 +91,7 @@ export function Landing() {
   return (
     <div className="site">
       <header className="site-nav">
-        <a className="brand" href="/" aria-label="Design House Briefing, strona główna">
+        <a className="brand" href="/" aria-label="Design House BriefFlow, strona główna">
           <BrandLockup />
         </a>
         <nav className="site-links" aria-label="Sekcje">
@@ -318,7 +318,7 @@ export function Landing() {
         <a className="foot-brand" href="https://designhouse.me" aria-label="Design House">
           <Wordmark />
         </a>
-        <span>Briefing to narzędzie Design House. Briefy przechowujemy w UE.</span>
+        <span>BriefFlow to narzędzie Design House. Briefy przechowujemy w UE.</span>
         <nav className="foot-links" aria-label="Dokumenty">
           <a href="/regulamin" onClick={(e) => onLinkClick(e, "/regulamin")}>
             Regulamin

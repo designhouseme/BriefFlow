@@ -24,7 +24,7 @@ export function ClientShell({
           <DhTile size={32} className="client-tile" />
         </a>
         <div className="client-head-text">
-          <span className="client-head-title">{title ?? "DH Briefing"}</span>
+          <span className="client-head-title">{title ?? "BriefFlow"}</span>
           {subtitle && <span className="client-head-sub">{subtitle}</span>}
         </div>
         {value !== undefined && <Progress value={value} />}
