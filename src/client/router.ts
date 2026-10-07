@@ -7,9 +7,12 @@ const EVENT = "dh:navigate";
 
 export function navigate(to: string, options: { replace?: boolean; transition?: boolean } = {}) {
   const go = () => {
+    const samePage = to.split("#")[0] === location.pathname + location.search;
     if (options.replace) history.replaceState(null, "", to);
     else history.pushState(null, "", to);
     window.dispatchEvent(new Event(EVENT));
+    // Nowa strona zaczyna się od góry (dokumenty, powrót na stronę startową).
+    if (!samePage) window.scrollTo(0, 0);
   };
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (options.transition && !reduced && "startViewTransition" in document) {

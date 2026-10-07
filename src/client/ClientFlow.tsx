@@ -194,7 +194,10 @@ function Welcome({ count, onStart }: { count: number; onStart: () => void }) {
           Zaczynamy <IconArrowRight size={18} aria-hidden />
         </button>
         <p className="welcome-note">
-          <IconCloudCheck size={16} aria-hidden /> Wszystko zapisuje się samo. Możesz wrócić tym samym linkiem.
+          <IconCloudCheck size={16} aria-hidden /> Wszystko zapisuje się samo. Możesz wrócić tym samym linkiem.{" "}
+          <a href="/prywatnosc" target="_blank" rel="noreferrer">
+            Polityka prywatności
+          </a>
         </p>
       </div>
     </main>

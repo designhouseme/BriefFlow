@@ -4,6 +4,7 @@ import { AppShell } from "./AppShell";
 import { AgencyBrief, ClientBriefPage } from "./BriefPage";
 import { Home } from "./Home";
 import { Landing } from "./Landing";
+import { PrivacyPage, TermsPage } from "./Legal";
 import { useLocation } from "./router";
 import { applyStoredTheme } from "./theme";
 import "@fontsource-variable/atkinson-hyperlegible-next/index.css";
@@ -18,6 +19,9 @@ function App() {
   useLayoutEffect(() => {
     document.documentElement.dataset.surface = surface;
   }, [surface]);
+
+  if (path === "/regulamin") return <TermsPage />;
+  if (path === "/prywatnosc") return <PrivacyPage />;
 
   // Link klienta: publiczny, z tokenem w ?k=.
   const client = path.match(/^\/b\/([^/]+)\/?$/);

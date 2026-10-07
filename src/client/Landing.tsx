@@ -32,7 +32,8 @@ import { AuthForm } from "./AuthForm";
 import { BrandLockup, Wordmark } from "./Brand";
 import { optionIcon, toneOf } from "./icons";
 import { Orb } from "./Orb";
-import { navigate } from "./router";
+import { REPO_URL } from "./links";
+import { navigate, onLinkClick } from "./router";
 import { ShaderOrb } from "./ShaderOrb";
 
 // Strona startowa pokazuje sam produkt: kula z powitania aplikacji, wokół niej krążą prawdziwe odpowiedzi
@@ -40,9 +41,6 @@ import { ShaderOrb } from "./ShaderOrb";
 // z maila przechodzi płynnie w aplikację (View Transitions).
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** Repozytorium projektu. Na razie adres zastępczy: podmień, gdy repo będzie publiczne. */
-const REPO_URL = "https://github.com/Arkazzae/dh-briefing";
 
 /** Pytania i odpowiedzi z prawdziwego szablonu, żeby strona nie pokazywała wymyślonych przykładów. */
 const WWW = briefFromTemplate("www", { id: "demo", title: "", clientName: "" });
@@ -321,9 +319,17 @@ export function Landing() {
           <Wordmark />
         </a>
         <span>Briefing to narzędzie Design House. Briefy przechowujemy w UE.</span>
-        <a className="foot-github" href={REPO_URL} target="_blank" rel="noreferrer">
-          <IconBrandGithub size={17} stroke={1.8} aria-hidden /> GitHub
-        </a>
+        <nav className="foot-links" aria-label="Dokumenty">
+          <a href="/regulamin" onClick={(e) => onLinkClick(e, "/regulamin")}>
+            Regulamin
+          </a>
+          <a href="/prywatnosc" onClick={(e) => onLinkClick(e, "/prywatnosc")}>
+            Prywatność
+          </a>
+          <a className="foot-github" href={REPO_URL} target="_blank" rel="noreferrer">
+            <IconBrandGithub size={17} stroke={1.8} aria-hidden /> GitHub
+          </a>
+        </nav>
       </footer>
     </div>
   );
