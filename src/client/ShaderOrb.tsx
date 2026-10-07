@@ -14,6 +14,8 @@ precision highp float;
 uniform vec2 uRes;
 uniform float uTime;
 uniform float uPulse;
+uniform vec2 uDrop;
+uniform vec3 uInk;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
@@ -30,8 +32,8 @@ float fbm(vec2 p) {
 void main() {
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
   float r = length(uv);
-  // Puls (coś wpadło do kuli): kula na moment rośnie, jaśnieje i wypuszcza falę.
-  float R = 0.21 * (1.0 + uPulse * 0.07);
+  // Coś wpadło do kuli (uPulse 1 -> 0): kula lekko się „przełyka”, a w środku powstaje wir.
+  float R = 0.21 * (1.0 + uPulse * 0.035);
   float t = uTime * 0.11;
 
   vec3 deep = vec3(0.247, 0.357, 0.941);
@@ -44,29 +46,39 @@ void main() {
   if (r < R) {
     float z = sqrt(R * R - r * r) / R;
     vec3 n = normalize(vec3(uv / R, z));
+    // Wir wokół miejsca trafienia: obracamy współrzędne tym mocniej, im bliżej trafienia i świeższy puls.
+    vec2 rel = n.xy - uDrop;
+    float near = exp(-dot(rel, rel) * 2.6);
+    float swirl = uPulse * 3.2 * near;
+    float sw = sin(swirl), cw = cos(swirl);
+    vec2 p = uDrop + vec2(cw * rel.x - sw * rel.y, sw * rel.x + cw * rel.y);
     // Światło płynie po powierzchni kuli: szum zniekształcony drugim szumem.
-    vec2 q = n.xy * 1.7;
+    vec2 q = p * 1.7;
     vec2 w = vec2(fbm(q + vec2(t, -t * 0.7)), fbm(q + vec2(-t * 0.8, t) + 3.1));
     float f = fbm(q * 1.2 + w * 1.9 + t * 0.4);
     // Delikatnie: najciemniejsze miejsca to wciąż jasny błękit, a nie granat.
     col = mix(mix(deep, mid, 0.45), light, smoothstep(0.35, 0.85, f) * 0.55);
     col = mix(col, violet, smoothstep(0.6, 0.95, w.y) * 0.22);
+    // Atrament: kolor wrzuconej odpowiedzi rozlewa się od trafienia smugami szumu i powoli rozpuszcza.
+    float spread = 0.2 + (1.0 - uPulse) * 1.5;
+    float d = length(rel);
+    float cloud = fbm(q * 1.6 + w * 2.4 - vec2(t * 3.0, 0.0));
+    float ink = smoothstep(spread, spread * 0.3, d) * smoothstep(0.34, 0.7, cloud) * pow(uPulse, 0.55);
+    col = mix(col, mix(uInk, light, 0.18), ink * 0.9);
     vec3 L = normalize(vec3(-0.55, 0.65, 0.75));
     float diff = clamp(dot(n, L), 0.0, 1.0);
     col = mix(col * 0.88, light, pow(diff, 3.0) * 0.6);
     float spec = pow(clamp(dot(reflect(-L, n), vec3(0.0, 0.0, 1.0)), 0.0, 1.0), 28.0);
     col += spec * 0.22;
     col = mix(col, violet, pow(1.0 - z, 3.0) * 0.45);
-    col = mix(col, light, uPulse * 0.4);
     alpha = smoothstep(R, R - 0.004, r);
   }
-  // Poświata w tle: szybko zanika, lekko oddycha.
-  float glow = exp(-pow(max(r - R, 0.0) / 0.16, 1.3)) * (0.3 + 0.07 * sin(uTime * 0.55) + uPulse * 0.45);
-  float wave = R + (1.0 - uPulse) * 0.2;
-  glow += exp(-pow((r - wave) / 0.012, 2.0)) * uPulse * 0.7;
+  // Poświata w tle: lekko oddycha, po trafieniu na chwilę przyjmuje kolor odpowiedzi.
+  float glow = exp(-pow(max(r - R, 0.0) / 0.16, 1.3)) * (0.3 + 0.07 * sin(uTime * 0.55) + uPulse * 0.18);
   // Do zera przed krawędzią płótna, inaczej widać jaśniejszy kwadrat.
   glow *= smoothstep(0.5, 0.36, r);
-  vec3 outCol = col * alpha + mid * glow * (1.0 - alpha);
+  vec3 glowCol = mix(mid, uInk, uPulse * 0.45);
+  vec3 outCol = col * alpha + glowCol * glow * (1.0 - alpha);
   float outA = alpha + glow * (1.0 - alpha);
   gl_FragColor = vec4(outCol, outA);
 }
@@ -78,6 +90,13 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
+}
+
+export type OrbPulse = (drop: { x: number; y: number; color: string }) => void;
+
+function hexToRgb(hex: string): [number, number, number] {
+  const m = hex.trim().match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  return m ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255] : [0.24, 0.36, 0.94];
 }
 
 /**
@@ -93,8 +112,11 @@ export function ShaderOrb({
   size?: number;
   className?: string;
   maxDpr?: number;
-  /** Dostaje funkcję, która wywołuje puls kuli (np. gdy coś do niej wpadnie). */
-  pulseRef?: React.MutableRefObject<(() => void) | null>;
+  /**
+   * Dostaje funkcję wywołującą reakcję kuli, gdy coś do niej wpadnie: `x`, `y` to miejsce trafienia względem
+   * środka kuli w jej promieniach (y w dół, jak w DOM), `color` to kolor, który rozleje się w środku (#rrggbb).
+   */
+  pulseRef?: React.MutableRefObject<OrbPulse | null>;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [fallback, setFallback] = useState(false);
@@ -126,14 +148,27 @@ export function ShaderOrb({
     gl.uniform2f(gl.getUniformLocation(program, "uRes"), canvas.width, canvas.height);
     const uTime = gl.getUniformLocation(program, "uTime");
     const uPulse = gl.getUniformLocation(program, "uPulse");
+    const uDrop = gl.getUniformLocation(program, "uDrop");
+    const uInk = gl.getUniformLocation(program, "uInk");
     let pulseAt = -1e9;
-    if (pulseRef) pulseRef.current = () => (pulseAt = performance.now());
+    gl.uniform2f(uDrop, 0, 0);
+    gl.uniform3f(uInk, 0.24, 0.36, 0.94);
+    if (pulseRef) {
+      pulseRef.current = ({ x, y, color }) => {
+        // Trafienie na powierzchni kuli (y w górę jak w GL), najwyżej 0.85 promienia od środka.
+        const len = Math.hypot(x, y);
+        const k = len > 0.85 ? 0.85 / len : 1;
+        gl.uniform2f(uDrop, x * k, -y * k);
+        gl.uniform3f(uInk, ...hexToRgb(color));
+        pulseAt = performance.now();
+      };
+    }
     gl.clearColor(0, 0, 0, 0);
 
     const draw = (seconds: number) => {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniform1f(uTime, seconds);
-      gl.uniform1f(uPulse, Math.exp(-((performance.now() - pulseAt) / 1000) * 3.2));
+      gl.uniform1f(uPulse, Math.exp(-((performance.now() - pulseAt) / 1000) * 0.95));
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 

@@ -774,16 +774,6 @@ textarea.input {
   box-shadow: var(--shadow-pop);
 }
 
-/* Odłamki, gdy odpowiedź wpadnie do kuli */
-.orbit-bit {
-  position: absolute;
-  z-index: 5;
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  pointer-events: none;
-}
-
 .orbit-chip .pill-icon {
   width: 28px;
   height: 28px;

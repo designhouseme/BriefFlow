@@ -34,7 +34,7 @@ import { optionIcon, toneOf } from "./icons";
 import { Orb } from "./Orb";
 import { REPO_URL } from "./links";
 import { navigate, onLinkClick } from "./router";
-import { ShaderOrb } from "./ShaderOrb";
+import { type OrbPulse, ShaderOrb } from "./ShaderOrb";
 
 // Strona startowa pokazuje sam produkt: kula z powitania aplikacji, wokół niej krążą prawdziwe odpowiedzi
 // z szablonu „Strona WWW”, niżej demo do przeklikania. Logowanie stoi w pierwszym ekranie i po kodzie
@@ -424,13 +424,13 @@ ORBIT.splice(7, 0, { label: "Pomiń na razie", Icon: IconClockPause, tone: "" })
 /**
  * Odpowiedzi krążą po pochylonej elipsie; te z tyłu są mniejsze, bledsze i chowają się za kulą.
  * Każdą można złapać i przesunąć albo rzucić: leci z bezwładnością, odbija się od krawędzi pierwszego
- * ekranu i po chwili wraca na orbitę. Wrzucona do kuli rozpryskuje się, kula błyska i odpowiedź
- * po chwili wraca na swoje miejsce.
+ * ekranu i po chwili wraca na orbitę. Wrzucona do kuli zostaje wciągnięta do środka, a w kuli
+ * (shader) powstaje wir i rozlewa się kolor odpowiedzi; po chwili odpowiedź wraca na swoje miejsce.
  */
 function HeroStage() {
   const stage = useRef<HTMLDivElement>(null);
   const orbit = useRef<HTMLDivElement>(null);
-  const pulse = useRef<(() => void) | null>(null);
+  const pulse = useRef<OrbPulse | null>(null);
 
   useLayoutEffect(() => {
     const stageEl = stage.current;
@@ -440,7 +440,7 @@ function HeroStage() {
     const still = reducedMotion();
     const tilt = -0.16;
 
-    type Mode = "orbit" | "held" | "free" | "return" | "gone" | "spawn";
+    type Mode = "orbit" | "held" | "free" | "return" | "absorb" | "gone" | "spawn";
     type Body = {
       el: HTMLElement;
       mode: Mode;
@@ -451,6 +451,8 @@ function HeroStage() {
       since: number;
       grabX: number;
       grabY: number;
+      fromX: number;
+      fromY: number;
       pointer: number;
       trail: { x: number; y: number; t: number }[];
     };
@@ -464,6 +466,8 @@ function HeroStage() {
       since: 0,
       grabX: 0,
       grabY: 0,
+      fromX: 0,
+      fromY: 0,
       pointer: -1,
       trail: [],
     }));
@@ -506,42 +510,25 @@ function HeroStage() {
       return orb.tagName === "CANVAS" ? r.height * 0.21 : r.height / 2;
     };
 
-    /** Rozprysk w kolorach odpowiedzi i kuli. */
-    const burst = (b: Body) => {
-      const tone = getComputedStyle(b.el).getPropertyValue("--tone-fg").trim() || "#3d5bf0";
-      const colors = [tone, "#7e97ff", "#c9d6ff", "#3f5bf0"];
-      for (let i = 0; i < 18; i++) {
-        const bit = document.createElement("span");
-        bit.className = "orbit-bit";
-        bit.style.background = colors[i % colors.length];
-        bit.style.left = `calc(50% + ${b.x}px)`;
-        bit.style.top = `calc(50% + ${b.y}px)`;
-        box.appendChild(bit);
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 70 + Math.random() * 140;
-        bit
-          .animate(
-            [
-              { transform: "translate(-50%, -50%) scale(1)", opacity: 1 },
-              {
-                transform: `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist}px)) scale(0.2) rotate(${Math.random() * 360}deg)`,
-                opacity: 0,
-              },
-            ],
-            { duration: 650 + Math.random() * 450, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
-          )
-          .finished.then(() => bit.remove(), () => bit.remove());
-      }
-    };
-
-    const explode = (b: Body, now: number) => {
+    /** Kula „przełyka” odpowiedź: wir i kolor odpowiedzi w shaderze, w miejscu, z którego wpadła. */
+    const swallow = (b: Body, now: number) => {
+      const radius = orbRadius() || 1;
+      const color = getComputedStyle(b.el).getPropertyValue("--tone-fg").trim() || "#3d5bf0";
+      pulse.current?.({ x: b.fromX / radius, y: b.fromY / radius, color });
       b.mode = "gone";
       b.since = now;
-      b.el.classList.remove("is-held");
       b.el.style.opacity = "0";
+    };
+
+    /** Odpowiedź wpada do kuli: zostaje wciągnięta do środka, potem kula reaguje. */
+    const explode = (b: Body, now: number) => {
+      b.el.classList.remove("is-held");
       b.el.style.pointerEvents = "none";
-      pulse.current?.();
-      if (!still) burst(b);
+      b.fromX = b.x;
+      b.fromY = b.y;
+      b.since = now;
+      if (still) return swallow(b, now);
+      b.mode = "absorb";
     };
 
     const inOrb = (b: Body) => Math.hypot(b.x, b.y) < orbRadius() * 0.85;
@@ -611,6 +598,15 @@ function HeroStage() {
               render(b, b.x, b.y, s.scale + (1 - s.scale) * k, s.opacity + (1 - s.opacity) * k, near > 40 ? 6 : s.z);
               break;
             }
+            case "absorb": {
+              const p = Math.min(1, (now - b.since) / 380);
+              const pull = p * p;
+              b.x = b.fromX * (1 - pull);
+              b.y = b.fromY * (1 - pull);
+              render(b, b.x, b.y, 1 - pull * 0.85, 1 - pull, 3);
+              if (p >= 1) swallow(b, now);
+              break;
+            }
             case "gone":
               if (now - b.since > 1500) {
                 b.mode = "spawn";
@@ -640,7 +636,7 @@ function HeroStage() {
     };
     const onDown = (e: PointerEvent) => {
       const b = find(e.currentTarget);
-      if (!b || b.mode === "gone" || b.mode === "spawn") return;
+      if (!b || b.mode === "gone" || b.mode === "spawn" || b.mode === "absorb") return;
       e.preventDefault();
       try {
         b.el.setPointerCapture(e.pointerId);
