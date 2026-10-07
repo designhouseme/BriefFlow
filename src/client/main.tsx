@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { AppShell } from "./AppShell";
 import { AgencyBrief, ClientBriefPage } from "./BriefPage";
@@ -13,6 +13,11 @@ applyStoredTheme();
 
 function App() {
   const { path, search } = useLocation();
+  // Skala 90% dotyczy aplikacji i widoku klienta, nie strony startowej (styles.css, „Skala”).
+  const surface = path === "/app" || path.startsWith("/app/") || path.startsWith("/b/") ? "app" : "site";
+  useLayoutEffect(() => {
+    document.documentElement.dataset.surface = surface;
+  }, [surface]);
 
   // Link klienta: publiczny, z tokenem w ?k=.
   const client = path.match(/^\/b\/([^/]+)\/?$/);

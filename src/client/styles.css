@@ -111,6 +111,22 @@
   --t6-fg: #8fdcd7;
 }
 
+/* --- Skala ---
+ * Aplikacja i widok klienta są na komputerze w 90% (wyglądają lepiej niż w 100%). Strona startowa
+ * i telefon zostają w 100%. Elementy na pełną wysokość okna dzielą 100dvh przez skalę.
+ */
+
+:root {
+  --zoom: 1;
+}
+
+@media (min-width: 981px) {
+  :root[data-surface="app"] {
+    --zoom: 0.9;
+    zoom: 0.9;
+  }
+}
+
 /* --- Podstawy --- */
 
 *,
@@ -570,7 +586,7 @@ textarea.input {
    ================================================================ */
 
 .site {
-  min-height: 100dvh;
+  min-height: calc(100dvh / var(--zoom));
   background: var(--bg);
 }
 
@@ -1316,7 +1332,7 @@ textarea.input {
 .app {
   display: grid;
   grid-template-columns: 68px 272px minmax(0, 1fr);
-  height: 100dvh;
+  height: calc(100dvh / var(--zoom));
   background: var(--bg);
   overflow: hidden;
 }
@@ -3344,7 +3360,7 @@ a.card:hover {
 .client-app {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: calc(100dvh / var(--zoom));
   background: var(--bg);
 }
 

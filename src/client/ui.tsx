@@ -150,7 +150,10 @@ export function scrollToElement(id: string) {
   let box = target.parentElement;
   while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
   const container = box ?? document.scrollingElement ?? document.documentElement;
-  const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16;
+  // Przy CSS zoom (90% na komputerze) położenia na ekranie są pomniejszone, a scrollTop nie.
+  const frame = container.getBoundingClientRect();
+  const scale = container instanceof HTMLElement && container.offsetHeight ? frame.height / container.offsetHeight : 1;
+  const top = (target.getBoundingClientRect().top - frame.top) / scale + container.scrollTop - 16;
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   container.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
 }
