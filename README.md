@@ -30,7 +30,7 @@ pnpm exec wrangler secret put GEMINI_API_KEY
 pnpm run deploy
 ```
 
-- Aplikacja działa pod https://brieflow.designhouse.me (domena własna Workera, `routes` w `wrangler.jsonc`). Rekord DNS i certyfikat Cloudflare tworzy przy pierwszym wdrożeniu; adres workers.dev jest wyłączony.
+- Aplikacja działa pod https://briefflow.designhouse.me (domena własna Workera, `routes` w `wrangler.jsonc`). Rekord DNS i certyfikat Cloudflare tworzy przy pierwszym wdrożeniu; adres workers.dev jest wyłączony.
 - Nadawca kodów to `EMAIL_FROM` w `wrangler.jsonc` (domyślnie `brief@designhouse.me`); jego domena musi być włączona w Cloudflare Email Service.
 - Zalogować się mogą tylko adresy z domen w `ALLOWED_EMAIL_DOMAINS` (domyślnie `designhouse.me`, kilka po przecinku, pusto = każdy).
 - Na produkcji briefy i konta są przechowywane w UE (jurysdykcja Durable Objects `eu`). Lokalnie ta opcja jest wyłączona, bo lokalny runtime jej nie obsługuje.

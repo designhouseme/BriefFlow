@@ -3,3 +3,6 @@ dist
 .wrangler
 .dev.vars
 *.log
+
+# Film renders (masters, stills); the README WebPs live in docs/media
+design/film/out/
