@@ -9,8 +9,21 @@
     "run_worker_first": ["/api/*", "/agents/*"]
   },
   "durable_objects": {
-    "bindings": [{ "name": "BriefAgent", "class_name": "BriefAgent" }]
+    "bindings": [
+      { "name": "BriefAgent", "class_name": "BriefAgent" },
+      { "name": "Accounts", "class_name": "AccountStore" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BriefAgent"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["BriefAgent"] },
+    { "tag": "v2", "new_sqlite_classes": ["AccountStore"] }
+  ],
+  // Kody logowania. Domenę nadawcy włącza się raz: `wrangler email sending enable designhouse.me`.
+  "send_email": [{ "name": "EMAIL" }],
+  "vars": {
+    "EMAIL_FROM": "brief@designhouse.me",
+    // Kto może się zalogować: domeny po przecinku. Pusto = każdy adres.
+    "ALLOWED_EMAIL_DOMAINS": "designhouse.me"
+  },
   "observability": { "enabled": true }
 }

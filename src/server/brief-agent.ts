@@ -8,6 +8,7 @@ import {
   moveField,
   normalizeAnswer,
   nudgeField,
+  progress,
   removeField,
   removeSection,
   updateField,
@@ -16,6 +17,8 @@ import {
 import { openQuestions } from "../shared/flow";
 import { briefFromTemplate } from "../shared/templates";
 import type { Actor, AiResult, AnswerInput, Brief, FieldInput, LogEntry, Role } from "../shared/types";
+import type { BriefSummary } from "../shared/account";
+import { accountStub } from "./accounts";
 import { runCommand } from "./ai";
 
 type ConnState = { role: Role };
@@ -31,6 +34,22 @@ function sameToken(a: string, b: string): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+/** Wiersz na liście briefów agencji (bez tokenów). */
+function summaryOf(brief: Brief): Omit<BriefSummary, "clientToken"> {
+  const p = progress(brief);
+  return {
+    id: brief.id,
+    title: brief.title,
+    clientName: brief.clientName,
+    templateId: brief.templateId,
+    createdAt: brief.createdAt,
+    updatedAt: brief.updatedAt,
+    settled: p.answered + p.unknown,
+    total: p.total,
+    completedAt: brief.completedAt,
+  };
 }
 
 /**
@@ -53,14 +72,32 @@ export class BriefAgent extends Agent<Env, Brief | null> {
 
   // --- Dostęp (wywoływane przez Worker przez RPC Durable Object, nie przez przeglądarkę) ---
 
-  async initBrief(input: { templateId: string; title: string; clientName: string }) {
+  async initBrief(input: { templateId: string; title: string; clientName: string; owner: string }) {
     this.ensureTables();
     if (this.state) throw new Error("Brief już istnieje.");
     const tokens = { agency: randomToken(), client: randomToken() };
-    this.sql`INSERT INTO meta (key, value) VALUES ('agency_token', ${tokens.agency}), ('client_token', ${tokens.client})`;
+    this.sql`INSERT INTO meta (key, value) VALUES ('agency_token', ${tokens.agency}), ('client_token', ${tokens.client}), ('owner', ${input.owner})`;
     this.setState(briefFromTemplate(input.templateId, { id: this.name, title: input.title, clientName: input.clientName }));
     this.logEvent("agency", `Utworzono brief „${this.state!.title}”.`);
-    return tokens;
+    return { ...tokens, summary: summaryOf(this.state!) };
+  }
+
+  /** Usunięcie briefu z konta agencji: kasuje wszystkie dane tej instancji. */
+  async destroyBrief() {
+    await this.destroy();
+  }
+
+  // Lista briefów na koncie agencji pokazuje tytuł i postęp, więc każda zmiana stanu idzie też tam.
+  onStateChanged(state: Brief | null | undefined) {
+    if (!state) return;
+    const [owner] = this.sql<{ value: string }>`SELECT value FROM meta WHERE key = 'owner'`;
+    if (!owner) return;
+    const { createdAt: _c, templateId: _t, ...patch } = summaryOf(state);
+    this.ctx.waitUntil(
+      accountStub(this.env, owner.value)
+        .touchBrief(this.name, patch)
+        .catch((error: unknown) => console.error("Nie udało się odświeżyć listy briefów", error)),
+    );
   }
 
   roleForToken(token: string | null): Role | null {
