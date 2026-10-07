@@ -2,6 +2,7 @@ import {
   IconArrowBackUp,
   IconArrowRight,
   IconArrowUp,
+  IconBrandGithub,
   IconCheck,
   IconClockPause,
   IconCopy,
@@ -39,6 +40,9 @@ import { ShaderOrb } from "./ShaderOrb";
 // z maila przechodzi płynnie w aplikację (View Transitions).
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Repozytorium projektu. Na razie adres zastępczy: podmień, gdy repo będzie publiczne. */
+const REPO_URL = "https://github.com/Arkazzae/dh-briefing";
 
 /** Pytania i odpowiedzi z prawdziwego szablonu, żeby strona nie pokazywała wymyślonych przykładów. */
 const WWW = briefFromTemplate("www", { id: "demo", title: "", clientName: "" });
@@ -98,6 +102,9 @@ export function Landing() {
           <a href="#agencja">Dla agencji</a>
           <a href="#pytania">Pytania</a>
         </nav>
+        <a className="icon-btn nav-github" href={REPO_URL} target="_blank" rel="noreferrer" aria-label="Kod na GitHubie" title="Kod na GitHubie">
+          <IconBrandGithub size={20} stroke={1.8} />
+        </a>
         {me ? (
           <button className="btn btn-primary" onClick={openApp}>
             Otwórz aplikację <IconArrowRight size={17} aria-hidden />
@@ -314,6 +321,9 @@ export function Landing() {
           <Wordmark />
         </a>
         <span>Briefing to narzędzie Design House. Briefy przechowujemy w UE.</span>
+        <a className="foot-github" href={REPO_URL} target="_blank" rel="noreferrer">
+          <IconBrandGithub size={17} stroke={1.8} aria-hidden /> GitHub
+        </a>
       </footer>
     </div>
   );

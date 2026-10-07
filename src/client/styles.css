@@ -1478,6 +1478,23 @@ textarea.input {
   color: var(--ink-3);
 }
 
+.nav-github {
+  color: var(--ink);
+}
+
+.foot-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.foot-github:hover {
+  color: var(--ink);
+}
+
 /* Zakończenie: kula i ten sam pasek logowania */
 
 .finale {
