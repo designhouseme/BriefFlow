@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { BriefSummary } from "../shared/account";
 import { questions } from "../shared/flow";
 import { briefFromTemplate, TEMPLATE_LIST } from "../shared/templates";
-import { createBrief, deleteTemplate } from "./api";
+import { createBrief } from "./api";
 import { briefName, firstName, MainHead, useApp } from "./AppShell";
 import { ShaderOrb } from "./ShaderOrb";
 import { navigate, onLinkClick } from "./router";
@@ -176,33 +176,6 @@ export function Home({ search }: { search: string }) {
                 </div>
               )}
             </div>
-            <section className="saved-templates" aria-label="Wybierz szablon briefu">
-              <h2 className="aside-title">Twoje szablony</h2>
-              <p className="home-template-note">Zacznij od pustego briefu albo zapisz przygotowane pytania jako własny szablon.</p>
-              <div className="saved-template-list">
-                <button className={`saved-template ${templateId === "empty" ? "is-selected" : ""}`} aria-pressed={templateId === "empty"} onClick={() => pickTemplate("empty")}>
-                  <IconFileText size={20} aria-hidden />
-                  <span><strong>Pusty brief</strong><small>Dodaj własne sekcje i pytania.</small></span>
-                </button>
-                {templates.map((template) => (
-                  <div className="saved-template-row" key={template.id}>
-                    <button className={`saved-template ${templateId === template.id ? "is-selected" : ""}`} aria-pressed={templateId === template.id} onClick={() => pickTemplate(template.id)}>
-                      <IconFileText size={20} aria-hidden />
-                      <span><strong>{template.title}</strong><small>{template.description || "Twój zestaw pytań, bez odpowiedzi klienta."}</small></span>
-                    </button>
-                    <button className="icon-btn" aria-label={`Usuń szablon: ${template.title}`} title="Usuń szablon" onClick={async () => {
-                      if (!confirm(`Usunąć szablon „${template.title}”? Utworzone z niego briefy zostaną.`)) return;
-                      try {
-                        await deleteTemplate(template.id);
-                        if (templateId === template.id) setTemplateId("www");
-                        refreshTemplates();
-                        notify("Usunięto szablon.");
-                      } catch (error) { notify((error as Error).message); }
-                    }}><IconX size={16} aria-hidden /></button>
-                  </div>
-                ))}
-              </div>
-            </section>
           </div>
         </div>
 

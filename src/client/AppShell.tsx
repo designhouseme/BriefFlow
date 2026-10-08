@@ -19,7 +19,7 @@ import {
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { AccountUsage, BriefSummary, Me } from "../shared/account";
 import { TEMPLATE_LIST } from "../shared/templates";
-import { ApiError, clientUrl, deleteBrief, getAccountUsage, getMe, listBriefs, listSavedTemplates, logout, primeMe, takePrimedMe, type SavedTemplate } from "./api";
+import { ApiError, clientUrl, deleteBrief, deleteTemplate, getAccountUsage, getMe, listBriefs, listSavedTemplates, logout, primeMe, takePrimedMe, type SavedTemplate } from "./api";
 import { AccountLogoSettings } from "./AccountLogoSettings";
 import { DhTile } from "./Brand";
 import { navigate, onLinkClick } from "./router";
@@ -331,10 +331,12 @@ function groupByDay(briefs: BriefSummary[]): Group[] {
 const TEMPLATE_ICON: Record<string, typeof IconWorld> = { www: IconWorld, empty: IconFile };
 
 function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () => void }) {
-  const { briefs, refresh, notify, templates, usage } = useApp();
+  const { briefs, refresh, notify, templates, refreshTemplates, usage } = useApp();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [removingTemplate, setRemovingTemplate] = useState<string | null>(null);
+  const newBriefRef = useRef<HTMLAnchorElement>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -359,6 +361,26 @@ function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () =
       notify("Skopiowano link dla klienta.");
     } catch {
       notify("Nie udało się skopiować. Otwórz brief i skopiuj link stamtąd.");
+    }
+  }
+
+  async function removeTemplate(template: SavedTemplate) {
+    if (removingTemplate || !confirm(`Usunąć szablon „${template.title}”? Utworzone z niego briefy zostaną.`)) return;
+    setRemovingTemplate(template.id);
+    try {
+      await deleteTemplate(template.id);
+      if (/^\/app\/?$/.test(location.pathname) && new URLSearchParams(location.search).get("szablon") === template.id) {
+        navigate("/app", { replace: true });
+      }
+      if (document.activeElement?.closest("[data-template-id]")?.getAttribute("data-template-id") === template.id) {
+        newBriefRef.current?.focus({ preventScroll: true });
+      }
+      refreshTemplates();
+      notify("Usunięto szablon. Utworzone briefy zostają.");
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setRemovingTemplate(null);
     }
   }
 
@@ -394,7 +416,7 @@ function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () =
         />
       )}
 
-      <a className="btn btn-primary btn-block" href="/app" onClick={(e) => onLinkClick(e, "/app")}>
+      <a ref={newBriefRef} className="btn btn-primary btn-block" href="/app" onClick={(e) => onLinkClick(e, "/app")}>
         <IconPlus size={17} stroke={2.2} aria-hidden /> Nowy brief
       </a>
       <p className="sidebar-usage" aria-live="polite">
@@ -425,11 +447,14 @@ function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () =
                 );
               })}
               {templates.map((t) => (
-                <li key={t.id}>
+                <li key={t.id} className="side-row" data-template-id={t.id}>
                   <a className="side-item" href={`/app?szablon=${encodeURIComponent(t.id)}`} onClick={(e) => onLinkClick(e, `/app?szablon=${encodeURIComponent(t.id)}`)} title={t.description}>
                     <span className="side-mark tone-3" aria-hidden><IconFile size={15} stroke={1.9} /></span>
                     <span className="side-text">{t.title}</span>
                   </a>
+                  <Menu className="side-menu" label={`Akcje szablonu: ${t.title}`} items={[
+                    { label: removingTemplate === t.id ? "Usuwam szablon…" : "Usuń szablon", icon: <IconTrash size={16} />, danger: true, disabled: Boolean(removingTemplate), onSelect: () => removeTemplate(t) },
+                  ]} />
                 </li>
               ))}
             </ul>
