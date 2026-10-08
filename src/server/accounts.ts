@@ -1,5 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
-import type { BriefSummary } from "../shared/account";
+import type { AccountTemplate, AccountTemplateSummary, BriefSummary } from "../shared/account";
+import type { Section } from "../shared/types";
+import { fromBase64, TEMPLATE_LIMIT, validateLogo, validateTemplateSections, type StoredLogo } from "./account-resources";
+import { AccountQuotas } from "./account-quotas";
 
 // Na produkcji dane zostają w UE (RODO): briefy i konta. Lokalny workerd nie obsługuje jurysdykcji.
 export const JURISDICTION = import.meta.env.DEV ? undefined : ("eu" as const);
@@ -59,6 +62,7 @@ type BriefRow = {
  */
 export class AccountStore extends DurableObject<Env> {
   private sql = this.ctx.storage.sql;
+  private quotas: AccountQuotas;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -72,6 +76,8 @@ export class AccountStore extends DurableObject<Env> {
     this.sql.exec(
       `CREATE TABLE IF NOT EXISTS briefs (id TEXT PRIMARY KEY, title TEXT NOT NULL, client_name TEXT NOT NULL, template_id TEXT NOT NULL, agency_token TEXT NOT NULL, client_token TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, settled INTEGER NOT NULL DEFAULT 0, total INTEGER NOT NULL DEFAULT 0, completed_at INTEGER)`,
     );
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY, data TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`);
+    this.quotas = new AccountQuotas(this.sql);
   }
 
   private email(): string | null {
@@ -89,9 +95,66 @@ export class AccountStore extends DurableObject<Env> {
     return this.email();
   }
 
+  // Logo jest małe i jedno na konto: mieści się w istniejącym magazynie SQLite.
+  logo(): StoredLogo | null {
+    const [row] = this.sql.exec<{ value: string }>(`SELECT value FROM profile WHERE key = 'logo'`).toArray();
+    return row ? JSON.parse(row.value) as StoredLogo : null;
+  }
+
+  logoUpdatedAt(): number | null {
+    const logo = this.logo();
+    return logo?.updatedAt ?? null;
+  }
+
+  saveLogo(input: Pick<StoredLogo, "data" | "mimeType">): number {
+    validateLogo(fromBase64(input.data), input.mimeType);
+    const updatedAt = Math.max(Date.now(), (this.logoUpdatedAt() ?? 0) + 1);
+    this.sql.exec(`INSERT OR REPLACE INTO profile (key, value) VALUES ('logo', ?)`, JSON.stringify({ ...input, updatedAt }));
+    return updatedAt;
+  }
+
+  removeLogo() {
+    this.sql.exec(`DELETE FROM profile WHERE key = 'logo'`);
+  }
+
+  // Szablony są prywatne, odrębne dla każdego adresu e-mail.
+  listTemplates(): AccountTemplateSummary[] {
+    return this.sql.exec<{ data: string }>(`SELECT data FROM templates ORDER BY updated_at DESC`).toArray().map(({ data }) => {
+      const { sections: _sections, ...summary } = JSON.parse(data) as AccountTemplate;
+      return summary;
+    });
+  }
+
+  template(id: string): AccountTemplate | null {
+    const [row] = this.sql.exec<{ data: string }>(`SELECT data FROM templates WHERE id = ?`, id).toArray();
+    return row ? JSON.parse(row.data) as AccountTemplate : null;
+  }
+
+  saveTemplate(input: { title: string; description?: string; sections: Section[] }): AccountTemplateSummary {
+    const title = input.title.trim();
+    const description = input.description?.trim() || undefined;
+    if (!title || title.length > 120 || (description && description.length > 400)) throw new Error("Podaj nazwę szablonu (do 120 znaków) i opis (do 400 znaków).");
+    validateTemplateSections(input.sections);
+    const [{ count }] = this.sql.exec<{ count: number }>(`SELECT COUNT(*) AS count FROM templates`).toArray();
+    if (count >= TEMPLATE_LIMIT) throw new Error(`Możesz zapisać maksymalnie ${TEMPLATE_LIMIT} własnych szablonów. Usuń jeden, aby dodać kolejny.`);
+    const now = Date.now();
+    const summary: AccountTemplateSummary = { id: `custom_${randomString(16)}`, title, ...(description ? { description } : {}), createdAt: now, updatedAt: now };
+    this.sql.exec(`INSERT INTO templates (id, data, created_at, updated_at) VALUES (?, ?, ?, ?)`, summary.id, JSON.stringify({ ...summary, sections: input.sections }), now, now);
+    return summary;
+  }
+
+  removeTemplate(id: string): boolean {
+    if (!this.template(id)) return false;
+    this.sql.exec(`DELETE FROM templates WHERE id = ?`, id);
+    return true;
+  }
+
   // --- Logowanie kodem ---
 
   async requestCode(email: string): Promise<CodeRequest> {
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
+    const hash = await sha256(`${email}:${code}`);
+    // No awaits between rate checking and saving: concurrent requests cannot both issue a code.
     const now = Date.now();
     const recent = this.sql
       .exec<{ created_at: number }>(`SELECT created_at FROM codes WHERE created_at > ? ORDER BY id DESC`, now - 3600_000)
@@ -104,12 +167,11 @@ export class AccountStore extends DurableObject<Env> {
     }
 
     this.sql.exec(`INSERT OR REPLACE INTO profile (key, value) VALUES ('email', ?)`, email);
-    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
     // Nowy kod unieważnia poprzednie: ważny jest zawsze ostatni z maila.
     this.sql.exec(`UPDATE codes SET used = 1 WHERE used = 0`);
     this.sql.exec(
       `INSERT INTO codes (hash, created_at, expires_at) VALUES (?, ?, ?)`,
-      await sha256(`${email}:${code}`),
+      hash,
       now,
       now + CODE_TTL,
     );
@@ -119,16 +181,19 @@ export class AccountStore extends DurableObject<Env> {
 
   async verifyCode(code: string): Promise<CodeCheck> {
     const email = this.email();
+    if (!email) return { ok: false, error: "Poproś o nowy kod." };
+    const hash = await sha256(`${email}:${code}`);
+    // Re-read only after hashing. A concurrent verification must observe used/attempts updates.
     const [row] = this.sql
       .exec<{ id: number; hash: string; expires_at: number; attempts: number }>(
         `SELECT id, hash, expires_at, attempts FROM codes WHERE used = 0 ORDER BY id DESC LIMIT 1`,
       )
       .toArray();
-    if (!email || !row) return { ok: false, error: "Poproś o nowy kod." };
+    if (!row) return { ok: false, error: "Poproś o nowy kod." };
     if (row.expires_at < Date.now()) return { ok: false, error: "Kod wygasł. Wyślij nowy." };
     if (row.attempts >= CODE_ATTEMPTS) return { ok: false, error: "Za dużo prób. Wyślij nowy kod." };
 
-    if (!sameString(row.hash, await sha256(`${email}:${code}`))) {
+    if (!sameString(row.hash, hash)) {
       this.sql.exec(`UPDATE codes SET attempts = attempts + 1 WHERE id = ?`, row.id);
       const left = CODE_ATTEMPTS - row.attempts - 1;
       return { ok: false, error: left > 0 ? "To nie ten kod. Sprawdź ostatni mail." : "Za dużo prób. Wyślij nowy kod." };
@@ -157,6 +222,41 @@ export class AccountStore extends DurableObject<Env> {
   }
 
   // --- Briefy tej osoby ---
+
+  usage() {
+    return this.ctx.storage.transactionSync(() => this.quotas.usage());
+  }
+
+  reserveBrief(id: string) {
+    return this.ctx.storage.transactionSync(() => this.quotas.reserveBrief(id));
+  }
+
+  commitBrief(reservation: string, brief: BriefSummary & { agencyToken: string }) {
+    return this.ctx.storage.transactionSync(() => this.quotas.commitBrief(brief.id, reservation, () => this.addBrief(brief)));
+  }
+
+  cancelBriefReservation(id: string, reservation: string) {
+    this.quotas.cancelBrief(id, reservation);
+  }
+
+  reserveAi(id: string) {
+    return this.ctx.storage.transactionSync(() => this.quotas.reserveAi(id));
+  }
+
+  commitAi(reservation: string) {
+    return this.ctx.storage.transactionSync(() => this.quotas.commitAi(reservation));
+  }
+
+  cancelAi(reservation: string) {
+    this.quotas.cancelAi(reservation);
+  }
+
+  completeBrief(id: string, at: number): boolean {
+    const [row] = this.sql.exec<{ id: string }>(`SELECT id FROM briefs WHERE id = ?`, id).toArray();
+    if (!row) return false;
+    this.sql.exec(`UPDATE briefs SET completed_at = COALESCE(completed_at, ?), updated_at = MAX(updated_at, ?) WHERE id = ?`, at, at, id);
+    return true;
+  }
 
   listBriefs(): BriefSummary[] {
     return this.sql
@@ -196,7 +296,7 @@ export class AccountStore extends DurableObject<Env> {
   /** Brief zmienił się (tytuł, odpowiedź, wysyłka): odświeżamy wiersz na liście. Nieznane id pomijamy. */
   touchBrief(id: string, patch: Pick<BriefSummary, "title" | "clientName" | "updatedAt" | "settled" | "total" | "completedAt">) {
     this.sql.exec(
-      `UPDATE briefs SET title = ?, client_name = ?, updated_at = ?, settled = ?, total = ?, completed_at = ? WHERE id = ?`,
+      `UPDATE briefs SET title = ?, client_name = ?, updated_at = ?, settled = ?, total = ?, completed_at = COALESCE(completed_at, ?) WHERE id = ? AND updated_at <= ?`,
       patch.title,
       patch.clientName,
       patch.updatedAt,
@@ -204,6 +304,7 @@ export class AccountStore extends DurableObject<Env> {
       patch.total,
       patch.completedAt ?? null,
       id,
+      patch.updatedAt,
     );
   }
 

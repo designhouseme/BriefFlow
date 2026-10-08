@@ -273,8 +273,8 @@ export interface CommandOutcome {
   brief: Brief;
 }
 
-export async function runCommand(apiKey: string, original: Brief, command: string): Promise<CommandOutcome> {
-  const ai = new GoogleGenAI({ apiKey });
+export async function runCommand(apiKey: string, original: Brief, command: string, signal?: AbortSignal): Promise<CommandOutcome> {
+  const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 30_000, retryOptions: { attempts: 1 } } });
   const brief: Brief = structuredClone(original);
   const changes: string[] = [];
   const fail = (summary: string): CommandOutcome => ({ ok: false, summary, changes: [], brief: original });
@@ -285,10 +285,12 @@ export async function runCommand(apiKey: string, original: Brief, command: strin
 
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
+      if (signal?.aborted) return fail("AI przekroczyło czas pracy. Spróbuj krótszego polecenia.");
       const response = await ai.models.generateContent({
         model: MODEL,
         contents,
         config: {
+          abortSignal: signal,
           systemInstruction: SYSTEM,
           tools: [{ functionDeclarations: TOOLS }],
           thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
@@ -313,6 +315,7 @@ export async function runCommand(apiKey: string, original: Brief, command: strin
           .map((part) => part.text)
           .join(" ")
           .trim();
+        if (!text && changes.length === 0) return fail("AI zwróciło pustą odpowiedź. Spróbuj ponownie.");
         return { ok: true, summary: text || (changes.length ? "Gotowe." : "Bez zmian."), changes, brief };
       }
 
@@ -329,10 +332,11 @@ export async function runCommand(apiKey: string, original: Brief, command: strin
       });
       contents.push({ role: "user", parts: results });
     }
-    return { ok: true, summary: "AI wykonało część zmian (osiągnięto limit kroków).", changes, brief };
+    return changes.length ? { ok: true, summary: "AI wykonało część zmian (osiągnięto limit kroków).", changes, brief } : fail("AI nie udało się zastosować zmian. Doprecyzuj polecenie.");
   } catch (error) {
+    if (signal?.aborted) return fail("AI przekroczyło czas pracy. Spróbuj krótszego polecenia.");
     if (!(error instanceof ApiError)) throw error;
-    console.error("Gemini API", error.status, error.message);
+    console.error("Gemini API", error.status);
     if (error.status === 401 || error.status === 403 || /API key/i.test(error.message)) {
       return fail("Nieprawidłowy klucz API Gemini.");
     }

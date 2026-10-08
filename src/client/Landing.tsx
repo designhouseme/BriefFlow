@@ -200,7 +200,7 @@ export function Landing() {
               <h2 className="site-h2" id="agencja-title">
                 Ty dostajesz brief, z którym da się zacząć projekt
               </h2>
-              <p>Wszystko w jednym widoku: pytania, odpowiedzi klienta, kontrole przed startem i historia zmian.</p>
+              <p>Pytania, odpowiedzi klienta i kontrole przed startem. Gotowe podsumowanie skopiujesz albo zapiszesz jako PDF.</p>
             </div>
             <div className="band-grid">
               <article className="band-card band-ai">
@@ -259,17 +259,17 @@ export function Landing() {
               </article>
 
               <article className="band-card band-log">
-                <h3>Historia zmian</h3>
-                <p>Kto, co i kiedy zmienił. Zmiany pytań da się cofnąć, odpowiedzi zostają.</p>
+                <h3>Twoje pytania, kolejny klient</h3>
+                <p>Zapisz przygotowany brief jako szablon. Przy kolejnym kliencie zaczynasz od gotowych pytań, bez poprzednich odpowiedzi.</p>
                 <ol className="band-log-list" aria-hidden>
                   <li>
-                    <span className="log-who is-client">Klient</span> Termin: do miesiąca
+                    <span className="log-who">Szablon</span> Twój zestaw pytań
                   </li>
                   <li>
-                    <span className="log-who is-ai">AI</span> Dodano pole „Metody dostawy”
+                    <span className="log-who is-client">Logo</span> Twoja marka w briefie klienta
                   </li>
                   <li>
-                    <span className="log-who">Agencja</span> Cofnięto zmianę pytań
+                    <span className="log-who">PDF</span> Zapisz w przeglądarce
                   </li>
                 </ol>
               </article>
@@ -309,7 +309,7 @@ export function Landing() {
             <ShaderOrb size={220} />
           </div>
           <h2 id="finale-title">Zacznij od pierwszego briefu</h2>
-          <p>Zaloguj się adresem firmowym i utwórz brief z szablonu „Strona WWW”.</p>
+          <p>Zaloguj się adresem e-mail i utwórz pierwszy brief.</p>
           <div className="finale-form">{signIn()}</div>
         </section>
       </main>
@@ -888,4 +888,3 @@ function TryDemo() {
     </div>
   );
 }
-

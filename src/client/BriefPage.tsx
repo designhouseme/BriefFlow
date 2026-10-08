@@ -7,7 +7,8 @@ import {
   IconCopy,
   IconExternalLink,
   IconGitBranch,
-  IconHistory,
+  IconFileExport,
+  IconTemplate,
   IconListCheck,
   IconPencil,
   IconPlus,
@@ -29,11 +30,11 @@ import {
   type FieldInput,
   FIELD_TYPES,
   type FieldType,
-  type LogEntry,
   type Section,
 } from "../shared/types";
-import { checkAccess, clientUrl } from "./api";
-import { briefName, MainHead, useApp } from "./AppShell";
+import { checkAccess, clientUrl, saveTemplate } from "./api";
+import { buildBriefSummary, exportBrief } from "./brief-export";
+import { briefName, MainHead, usageResetDate, useApp } from "./AppShell";
 import { ClientFlow } from "./ClientFlow";
 import { type BriefStub, type Run, useBriefAgent } from "./connection";
 import { conditionText, FieldCard } from "./FieldCard";
@@ -89,17 +90,17 @@ function PanelLoading() {
 }
 
 function briefStatus(brief: Brief): { label: string; tone: string } {
-  if (brief.completedAt) return { label: "Wysłany", tone: "badge-green" };
+  if (brief.completedAt) return { label: "Zakończony", tone: "badge-green" };
   if (Object.values(brief.answers).some((a) => a.by === "client")) return { label: "Klient odpowiada", tone: "badge-blue" };
   return { label: "Szkic", tone: "" };
 }
 
 function ConnectedAgency({ id, aiEnabled, isNew }: { id: string; aiEnabled: boolean; isNew: boolean }) {
-  const { notify, patchBrief } = useApp();
+  const { notify, patchBrief, me, refresh, refreshUsage } = useApp();
   const agent = useBriefAgent(id);
   const brief = agent.state;
   const [editing, setEditing] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
   const run: Run = useCallback(
     async (action) => {
@@ -127,6 +128,10 @@ function ConnectedAgency({ id, aiEnabled, isNew }: { id: string; aiEnabled: bool
     });
   }, [brief, id, patchBrief]);
 
+  useEffect(() => {
+    if (brief) void refreshUsage();
+  }, [brief?.id, brief?.completedAt, refreshUsage]);
+
   // Pasek adresu bez ?new=1: to on trafia do zakładek.
   useEffect(() => {
     if (isNew) history.replaceState(null, "", `/app/b/${id}`);
@@ -144,9 +149,21 @@ function ConnectedAgency({ id, aiEnabled, isNew }: { id: string; aiEnabled: bool
         badge={<span className={`badge ${status.tone}`}>{status.label}</span>}
         actions={
           <>
-            <button className="btn" onClick={() => setHistoryOpen(true)}>
-              <IconHistory size={17} aria-hidden /> <span className="hide-sm">Historia</span>
+            <button className="btn" disabled={!brief.canUndo} onClick={async () => { await run(() => agent.stub.undo()); void refreshUsage(); }} title="Cofnij ostatnią zmianę pytań">
+              <IconArrowBackUp size={17} aria-hidden /> <span className="hide-sm">Cofnij</span>
             </button>
+            <Menu label="Więcej akcji briefu" items={[
+              ...(!brief.completedAt ? [{ label: "Zakończ brief", icon: <IconCheck size={16} />, disabled: finishing, onSelect: async () => {
+                if (finishing || !confirm("Zakończyć ten brief? Zachowasz pytania i odpowiedzi, a zwolnisz miejsce na nowy aktywny brief.")) return;
+                setFinishing(true);
+                try { await agent.stub.complete(); refresh(); notify("Brief zakończony. Zwolniono miejsce na nowy brief."); }
+                catch (error) { notify((error as Error).message); }
+                finally { setFinishing(false); }
+              } }] : []),
+              { label: "PDF / drukuj", icon: <IconFileExport size={16} />, onSelect: () => { void exportBrief(brief, me.logoUrl).catch((e) => notify((e as Error).message)); } },
+              { label: "Kopiuj podsumowanie", icon: <IconCopy size={16} />, onSelect: async () => { try { await navigator.clipboard.writeText(buildBriefSummary(brief)); notify("Skopiowano podsumowanie."); } catch { notify("Nie udało się skopiować podsumowania."); } } },
+            ]} />
+            <SaveTemplatePopover brief={brief} />
             <SharePopover id={id} stub={agent.stub} />
           </>
         }
@@ -181,10 +198,34 @@ function ConnectedAgency({ id, aiEnabled, isNew }: { id: string; aiEnabled: bool
             <AiDock brief={brief} stub={agent.stub} run={run} aiEnabled={aiEnabled} />
           </div>
         </div>
-        {historyOpen && <HistorySheet stub={agent.stub} updatedAt={brief.updatedAt} onClose={() => setHistoryOpen(false)} />}
       </div>
     </>
   );
+}
+
+function SaveTemplatePopover({ brief }: { brief: Brief }) {
+  const { notify, refreshTemplates } = useApp();
+  return <Popover trigger={<><IconTemplate size={17} aria-hidden /><span className="hide-sm">Zapisz szablon</span></>} triggerClass="btn" label="Zapisz pytania jako szablon">
+    {(close) => <SaveTemplateForm brief={brief} onSaved={() => { refreshTemplates(); close(); notify("Zapisano szablon pytań, bez odpowiedzi klienta."); }} />}
+  </Popover>;
+}
+
+function SaveTemplateForm({ brief, onSaved }: { brief: Brief; onSaved: () => void }) {
+  const [title, setTitle] = useState(brief.title);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return <form className="pop-form" onSubmit={async (event) => {
+    event.preventDefault();
+    if (busy || !title.trim()) return;
+    setBusy(true); setError("");
+    try { await saveTemplate({ briefId: brief.id, title }); onSaved(); }
+    catch (e) { setError((e as Error).message); setBusy(false); }
+  }}>
+    <p className="share-text">Zapisz sekcje i pytania do kolejnych briefów. Odpowiedzi i nazwa klienta nie trafią do szablonu.</p>
+    <label className="label">Nazwa szablonu<input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} required autoFocus /></label>
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <button className="btn btn-primary" disabled={busy || !title.trim() || brief.sections.length === 0}>{busy ? "Zapisuję…" : "Zapisz szablon"}</button>
+  </form>;
 }
 
 /** Nazwa briefu i klienta: zmiana w małym panelu przy tytule. */
@@ -299,7 +340,7 @@ function Overview({ brief }: { brief: Brief }) {
   const settled = p.answered + p.unknown;
   const pct = percent(settled, p.total);
   const note = brief.completedAt
-    ? `Klient wysłał brief ${new Date(brief.completedAt).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}.`
+    ? `Brief zakończono ${new Date(brief.completedAt).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}.`
     : open
       ? "Klient może wracać tym samym linkiem i uzupełniać resztę."
       : "Wszystko uzupełnione.";
@@ -646,66 +687,29 @@ function AddSection({ stub, run }: { stub: BriefStub; run: Run }) {
   );
 }
 
-const ACTOR: Record<LogEntry["actor"], string> = { agency: "Agencja", client: "Klient", ai: "AI" };
-
-function HistorySheet({ stub, updatedAt, onClose }: { stub: BriefStub; updatedAt: number; onClose: () => void }) {
-  const [entries, setEntries] = useState<LogEntry[] | null>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    stub.getLog().then(setEntries, () => setEntries([]));
-  }, [updatedAt, stub]);
-
-  useEffect(() => {
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <aside className="sheet" aria-label="Historia zmian">
-      <div className="sheet-head">
-        <h2>Historia zmian</h2>
-        <button className="icon-btn" ref={closeRef} onClick={onClose} aria-label="Zamknij historię">
-          <IconX size={18} />
-        </button>
-      </div>
-      {entries === null ? (
-        <p className="sheet-empty">Wczytuję…</p>
-      ) : entries.length === 0 ? (
-        <p className="sheet-empty">Jeszcze nic się nie wydarzyło.</p>
-      ) : (
-        <ol className="log">
-          {entries.map((entry, i) => (
-            <li key={i}>
-              <span className={`log-who is-${entry.actor}`}>{ACTOR[entry.actor]}</span>
-              <span className="log-text">{entry.text}</span>
-              <time>{new Date(entry.at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time>
-            </li>
-          ))}
-        </ol>
-      )}
-    </aside>
-  );
-}
-
 /** Polecenie dla AI jak pole czatu na dole panelu. Cofnij działa także dla zmian ręcznych. */
 function AiDock({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub; run: Run; aiEnabled: boolean }) {
+  const { usage, usageError, refreshUsage } = useApp();
   const [command, setCommand] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AiResult | null>(null);
+  const aiRemaining = usage ? Math.max(0, usage.ai.limit - usage.ai.used) : 0;
+  const unavailable = !aiEnabled || !usage || aiRemaining === 0;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!command.trim() || busy) return;
+    if (!command.trim() || busy || unavailable) return;
     setBusy(true);
     setResult(null);
-    const outcome = await run(() => stub.runAiCommand(command));
-    setBusy(false);
-    if (outcome) {
+    try {
+      const outcome = await stub.runAiCommand(command);
       setResult(outcome);
       if (outcome.ok) setCommand("");
+    } catch (error) {
+      setResult({ ok: false, summary: (error as Error).message, changes: [] });
+    } finally {
+      setBusy(false);
+      void refreshUsage();
     }
   }
 
@@ -734,13 +738,14 @@ function AiDock({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub
           <span className="visually-hidden">Polecenie dla AI</span>
           <input
             placeholder={
-              aiEnabled
+              aiEnabled && aiRemaining > 0
                 ? "Napisz AI, co dodać lub zmienić w pytaniach"
-                : "AI wyłączone: dodaj GEMINI_API_KEY do .dev.vars"
+                : aiEnabled && usage ? "Miesięczny limit poleceń AI wykorzystany" : "Polecenia AI są obecnie niedostępne"
             }
             value={command}
             onChange={(e) => setCommand(e.target.value)}
-            disabled={!aiEnabled || busy}
+            disabled={unavailable || busy}
+            aria-describedby={`ai-usage-${brief.id}`}
             maxLength={1000}
           />
         </label>
@@ -748,19 +753,22 @@ function AiDock({ brief, stub, run, aiEnabled }: { brief: Brief; stub: BriefStub
           type="button"
           className="bar-icon-btn"
           disabled={!brief.canUndo || busy}
-          onClick={() => run(() => stub.undo())}
+          onClick={async () => { await run(() => stub.undo()); void refreshUsage(); }}
           aria-label="Cofnij ostatnią zmianę pytań"
           title="Cofnij ostatnią zmianę pytań (ręczną albo AI)"
         >
           <IconArrowBackUp size={19} />
         </button>
-        <button className="btn-send" disabled={!aiEnabled || busy || !command.trim()}>
+        <button className="btn-send" disabled={unavailable || busy || !command.trim()}>
           <span className="btn-send-label">{busy ? "AI pracuje…" : "Wykonaj"}</span>
           <span className="btn-send-icon" aria-hidden>
             <IconArrowUp size={18} stroke={2.4} />
           </span>
         </button>
       </div>
+      <p id={`ai-usage-${brief.id}`} className={`dock-note ${usage && aiRemaining === 0 ? "usage-limit" : !usage && usageError ? "usage-error" : ""}`} role="status">
+        {usage ? <>AI: {aiRemaining} z {usage.ai.limit} dostępnych poleceń w tym miesiącu. Odnowienie {usageResetDate(usage.ai.resetsAt)}.</> : usageError ? <>{usageError} <button type="button" className="btn btn-small btn-quiet" onClick={() => void refreshUsage()}>Spróbuj ponownie</button></> : "Sprawdzam limit poleceń AI…"}
+      </p>
     </form>
   );
 }
@@ -807,7 +815,7 @@ export function ClientBriefPage({ id, token }: { id: string; token: string }) {
       </ClientShell>
     );
   }
-  return <ConnectedClient id={id} token={token} />;
+  return <ConnectedClient id={id} token={token} logoUrl={access.logoUrl} />;
 }
 
 function ClientLoading() {
@@ -821,7 +829,7 @@ function ClientLoading() {
   );
 }
 
-function ConnectedClient({ id, token }: { id: string; token: string }) {
+function ConnectedClient({ id, token, logoUrl }: { id: string; token: string; logoUrl?: string }) {
   const agent = useBriefAgent(id, token);
   const brief = agent.state;
   const [toast, setToast] = useState("");
@@ -835,7 +843,7 @@ function ConnectedClient({ id, token }: { id: string; token: string }) {
   if (!brief) return <ClientLoading />;
   const p = progress(brief);
   return (
-    <ClientShell title={brief.title} subtitle={brief.clientName || undefined} value={percent(p.answered + p.unknown, p.total)}>
+    <ClientShell title={brief.title} subtitle={brief.clientName || undefined} logoUrl={logoUrl} value={percent(p.answered + p.unknown, p.total)}>
       <ClientFlow brief={brief} stub={agent.stub} notify={setToast} />
       {toast && (
         <div className="toast" role="status">

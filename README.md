@@ -18,9 +18,11 @@ Brief przed projektem strony to zwykle długi formularz: klient go odkłada, cz�
 
 ## Jak to działa
 
-1. **Tworzysz brief.** Wpisujesz klienta i wybierasz gotowy szablon „Strona WWW” albo zaczynasz od pustego briefu. Pytania zmienisz ręcznie albo poleceniem dla AI.
+1. **Tworzysz brief.** Wpisujesz klienta i wybierasz szablon „Strona WWW”, własny szablon albo pusty brief. Pytania zmienisz ręcznie albo poleceniem dla AI.
 2. **Wysyłasz link.** Klient dostaje jeden link. Bez konta i bez hasła.
 3. **Czytasz brief na żywo.** Odpowiedzi wpadają przy każdym kliknięciu. Gdy klient wyśle brief, dostajesz maila.
+
+Bezpłatne konto ma **3 aktywne briefy i 10 poleceń AI miesięcznie**. Wysłany lub zakończony brief zwalnia miejsce i pozostaje do odczytu oraz edycji. Miesiąc AI liczony jest według czasu w Warszawie; poprawna odpowiedź AI bez zmiany pytań też zużywa polecenie, a błędy nie.
 
 ## Twój klient po prostu klika
 
@@ -32,7 +34,7 @@ Brief przed projektem strony to zwykle długi formularz: klient go odkłada, cz�
 - **„Nie wiem” to też odpowiedź.** Klient może dać „Nie wiem” albo „Pomiń na razie” i iść dalej. Nic go nie blokuje.
 - **Może przerwać w dowolnym miejscu.** Odpowiedzi zapisują się przy każdym kliknięciu. Klient wraca tym samym linkiem i zaczyna tam, gdzie skończył.
 - **Widzi, ile już zrobił.** Obok rozmowy rośnie jego brief, więc wie, ile zostało.
-- **Szablon „Strona WWW”** ma 30 pytań: firma, cel, zakres, sklep, wygląd, materiały, termin i budżet. Klientowi zajmuje to około 6 minut.
+- **Szablon „Strona WWW”** prowadzi przez firmę, cel, zakres, wygląd, materiały, termin i budżet. Dodatkowe pytania, na przykład o sklep, pojawiają się zależnie od odpowiedzi.
 
 ## Ty dostajesz brief, z którym da się zacząć projekt
 
@@ -42,11 +44,14 @@ Brief przed projektem strony to zwykle długi formularz: klient go odkłada, cz�
 
 <p align="center"><sub>Przykładowe polecenie. To, jakie pytania doda AI, zależy od polecenia; każdą zmianę widać w podsumowaniu.</sub></p>
 
-Wszystko w jednym widoku: pytania, odpowiedzi klienta, kontrole przed startem i historia zmian.
+Wszystko w jednym widoku: pytania, odpowiedzi klienta i kontrole przed startem.
 
 - **Polecenia dla AI.** Napisz, co dodać albo zmienić, a AI przerobi pytania, najchętniej na takie do klikania. Każde polecenie cofniesz jednym kliknięciem.
 - **Przed startem.** Od razu widzisz, czego brakuje w Bazie (bez tego nie startujemy), na co reagować od razu i co idzie do osobnej wyceny.
-- **Historia zmian.** Kto, co i kiedy zmienił. Zmiany pytań da się cofnąć, odpowiedzi zostają.
+- **Proste cofanie.** Cofniesz ostatnią zmianę pytań; odpowiedzi zostają.
+- **Własne szablony.** Zapisujesz sekcje i pytania z briefu. Kolejny klient dostaje gotowy zestaw, bez wcześniejszych odpowiedzi.
+- **Twoje logo.** Dodajesz logo na koncie; pojawia się w briefach udostępnianych klientom. To jedyny upload w aplikacji: materiały klienta pozostają linkami.
+- **Podsumowanie do pracy.** Kopiujesz odpowiedzi albo otwierasz wydruk A4 i zapisujesz go jako PDF w przeglądarce.
 - **Pytania, które pojawiają się same.** Płatności i dostawę zobaczy tylko klient, który zaznaczy sklep internetowy.
 - **Wypełniajcie razem.** Ty i klient widzicie te same zmiany na żywo, więc brief da się wypełnić na spotkaniu albo podczas rozmowy.
 
@@ -65,14 +70,14 @@ Nie. AI zmienia tylko zestaw pytań i tylko na Twoje polecenie. Odpowiedzi daje 
 Tak. Ty i klient widzicie te same zmiany na żywo, więc brief da się wypełnić na spotkaniu albo podczas rozmowy.
 
 **Gdzie są przechowywane dane?**<br>
-Na serwerach Cloudflare, w jurysdykcji Unii Europejskiej. Klient widzi tylko brief, do którego dostał link. Szczegóły: [regulamin](https://briefflow.designhouse.me/regulamin) i [polityka prywatności](https://briefflow.designhouse.me/prywatnosc).
+Briefy i konta są zapisane w Cloudflare Durable Objects, w jurysdykcji Unii Europejskiej. Obsługa żądań, maile i użyte na polecenie AI mogą wiązać się z przetwarzaniem przez dostawców poza UE. Klient widzi brief, do którego dostał link. Szczegóły: [regulamin](https://briefflow.designhouse.me/regulamin) i [polityka prywatności](https://briefflow.designhouse.me/prywatnosc).
 
 **Czego jeszcze nie ma?**<br>
-Wgrywania plików (logo i zdjęcia klient na razie podaje linkiem albo deklaruje, że wyśle), przypomnień mailowych dla klienta i briefów wspólnych dla całego zespołu.
+Wgrywania materiałów klienta (logo i zdjęcia klient podaje linkiem albo deklaruje, że wyśle), przypomnień mailowych dla klienta i briefów wspólnych dla całego zespołu. Możesz wgrać własne logo nadawcy briefu.
 
 ## Zacznij od pierwszego briefu
 
-Zaloguj się adresem firmowym na **[briefflow.designhouse.me](https://briefflow.designhouse.me)** i utwórz brief z szablonu „Strona WWW”.
+Zaloguj się adresem e-mail na **[briefflow.designhouse.me](https://briefflow.designhouse.me)** i utwórz brief z szablonu „Strona WWW”. Jedno konto ma własne briefy, logo i szablony.
 
 ---
 

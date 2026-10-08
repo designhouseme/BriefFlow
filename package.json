@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
     "types": "wrangler types"
   },
   "dependencies": {

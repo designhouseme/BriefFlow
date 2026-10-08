@@ -31,8 +31,14 @@ const picked = (answer: Answer | undefined, ...ids: string[]) =>
 
 export function redFlags(brief: Brief): Flag[] {
   const visible = questions(brief).map((q) => q.field);
-  const byId = new Map(visible.map((f) => [f.id, f]));
-  const answer = (id: string) => (byId.has(id) ? brief.answers[id] : undefined);
+  const byKey = new Map(visible.map((f) => [f.templateKey ?? f.id, f]));
+  const pickedFromTemplate = (key: string, ...optionKeys: string[]) => {
+    const field = byKey.get(key);
+    if (!field) return false;
+    const optionIds = optionsOf(field).filter((option) => optionKeys.includes(option.templateKey ?? option.id)).map((option) => option.id);
+    return picked(brief.answers[field.id], ...optionIds);
+  };
+  const fieldId = (key: string) => byKey.get(key)!.id;
   const flags: Flag[] = [];
 
   for (const field of visible) {
@@ -68,23 +74,23 @@ export function redFlags(brief: Brief): Flag[] {
   }
 
   // Reguły pod pytania z szablonu „Strona WWW”. Gdy agencja pytanie usunie, reguła po prostu milknie.
-  if (picked(answer("f_decyzje"), "kilka")) {
+  if (pickedFromTemplate("f_decyzje", "kilka")) {
     flags.push({
-      fieldId: "f_decyzje",
+      fieldId: fieldId("f_decyzje"),
       title: "Projekt zatwierdza kilka osób",
       advice: "Jedna osoba zbiera wszystkie uwagi, albo wspólnik dołącza do następnej rozmowy.",
     });
   }
-  if (picked(answer("f_domena"), "bez_dostepu")) {
+  if (pickedFromTemplate("f_domena", "bez_dostepu")) {
     flags.push({
-      fieldId: "f_domena",
+      fieldId: fieldId("f_domena"),
       title: "Nikt nie wie, gdzie jest panel domeny",
       advice: "Najpierw odzyskanie dostępu, dopiero potem data startu.",
     });
   }
-  if (picked(answer("f_budzet"), "do5") && (picked(answer("f_sklep"), "yes") || picked(answer("f_wielkosc"), "srednia", "duza"))) {
+  if (pickedFromTemplate("f_budzet", "do5") && (pickedFromTemplate("f_sklep", "yes") || pickedFromTemplate("f_wielkosc", "srednia", "duza"))) {
     flags.push({
-      fieldId: "f_budzet",
+      fieldId: fieldId("f_budzet"),
       title: "Zakres może nie zmieścić się w budżecie",
       advice: "Pokaż, co da się zrobić w tym budżecie, i zapisz to w podsumowaniu.",
     });
@@ -92,9 +98,9 @@ export function redFlags(brief: Brief): Flag[] {
   const materialsMissing = visible.some(
     (f) => f.type === "material" && !(picked(brief.answers[f.id], "link") || picked(brief.answers[f.id], "will_send")),
   );
-  if (picked(answer("f_termin"), "asap", "miesiac") && materialsMissing) {
+  if (pickedFromTemplate("f_termin", "asap", "miesiac") && materialsMissing) {
     flags.push({
-      fieldId: "f_termin",
+      fieldId: fieldId("f_termin"),
       title: "Krótki termin, a materiałów jeszcze nie ma",
       advice: "Termin strony liczymy od dnia, w którym materiały będą w komplecie.",
     });

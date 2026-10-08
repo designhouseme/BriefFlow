@@ -23,12 +23,12 @@
     { "tag": "v1", "new_sqlite_classes": ["BriefAgent"] },
     { "tag": "v2", "new_sqlite_classes": ["AccountStore"] }
   ],
-  // Kody logowania. Domenę nadawcy włącza się raz: `wrangler email sending enable designhouse.me`.
+  // Zapasowy transport maili bez RESEND_API_KEY; wymaga domeny w Cloudflare Email Service.
   "send_email": [{ "name": "EMAIL" }],
   "vars": {
-    "EMAIL_FROM": "brief@designhouse.me",
+    "EMAIL_FROM": "briefflow@designhouse.me",
     // Kto może się zalogować: domeny po przecinku. Pusto = każdy adres.
-    "ALLOWED_EMAIL_DOMAINS": "designhouse.me"
+    "ALLOWED_EMAIL_DOMAINS": ""
   },
   "observability": { "enabled": true }
 }

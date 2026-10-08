@@ -18,6 +18,7 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
   const [busy, setBusy] = useState(false);
   const [wait, setWait] = useState(0);
   const codeRef = useRef<HTMLInputElement>(null);
+  const requestPending = useRef(false);
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -26,12 +27,13 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
   }, [wait]);
 
   useEffect(() => {
-    if (step === "code") codeRef.current?.focus();
-  }, [step]);
+    if (step === "code" && !busy) codeRef.current?.focus();
+  }, [step, busy]);
 
   async function send(event?: React.FormEvent) {
     event?.preventDefault();
-    if (busy) return;
+    if (requestPending.current || busy || !email.trim() || (step === "code" && wait > 0)) return;
+    requestPending.current = true;
     setBusy(true);
     setError("");
     try {
@@ -51,12 +53,14 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
         if (retry) setWait(retry);
       }
     } finally {
+      requestPending.current = false;
       setBusy(false);
     }
   }
 
   async function verify(value = code) {
-    if (busy || value.length !== 6) return;
+    if (requestPending.current || busy || value.length !== 6) return;
+    requestPending.current = true;
     setBusy(true);
     setError("");
     try {
@@ -64,7 +68,10 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
       onDone(result.email);
     } catch (e) {
       setError((e as Error).message);
-      setCode("");
+      // A connection/server failure can be retried with the same code. Only a
+      // confirmed invalid code or malformed request needs a new input.
+      if (e instanceof ApiError && (e.status === 400 || e.status === 401)) setCode("");
+      requestPending.current = false;
       setBusy(false);
       codeRef.current?.focus();
     }
@@ -87,6 +94,7 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
               placeholder="Twój adres e-mail"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={busy}
               autoFocus={autoFocus}
               required
               aria-invalid={Boolean(error) || undefined}
@@ -106,7 +114,7 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
           </p>
         ) : (
           <p className="auth-note" id={ids.note}>
-            Logujesz się kodem z maila, bez hasła.
+            Aby rozpocząć, wpisz swój adres e-mail. Wyślemy Ci kod logowania.
           </p>
         )}
       </form>
@@ -135,9 +143,9 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
             inputMode="numeric"
             autoComplete="one-time-code"
             pattern="[0-9]*"
-            maxLength={6}
             placeholder="000000"
             value={code}
+            disabled={busy}
             onChange={(e) => {
               const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
               setCode(digits);
@@ -167,6 +175,7 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
         <button
           type="button"
           className="link-btn"
+          disabled={busy}
           onClick={() => {
             setStep("email");
             setError("");
@@ -184,6 +193,7 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
           <button
             type="button"
             className="link-btn"
+            disabled={busy}
             onClick={() => {
               setCode(devCode);
               verify(devCode);

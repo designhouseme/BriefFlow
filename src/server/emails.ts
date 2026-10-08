@@ -1,12 +1,14 @@
 // Maile BriefFlow wyglądają jak aplikacja: logo Design House z podpisem „BriefFlow”, kula jako awatar,
 // wiadomość w dymku, kafelki i pigułki jak w rozmowie, przycisk jak w pasku na dole aplikacji.
-// Każdy mail ma też wersję tekstową. Lokalnie maile idą do Mailpita, na produkcji przez Cloudflare Email Service.
+// Każdy mail ma też wersję tekstową. Lokalnie maile idą do Mailpita, na produkcji przez Resend lub Cloudflare Email Service.
 
 export interface Mail {
   to: string;
   subject: string;
   html: string;
   text: string;
+  /** Stabilny identyfikator tej samej wysyłki, używany przez Resend do uniknięcia duplikatów. */
+  idempotencyKey?: string;
 }
 
 const esc = (value: string) =>
@@ -75,26 +77,18 @@ const footerText = "\n\n--\nDesign House";
 
 /** Kod logowania: 6 cyfr, ważny 10 minut. */
 export function loginCodeMail(input: { to: string; code: string; origin: string }): Mail {
-  const spaced = `${input.code.slice(0, 3)} ${input.code.slice(3)}`;
-  // Cyfry jak kafelki odpowiedzi w rozmowie, z przerwą po trzeciej.
-  const tiles = input.code
-    .split("")
-    .map(
-      (digit, i) =>
-        `${i === 3 ? '<td style="width:10px"></td>' : ""}<td style="padding-right:6px"><span style="display:inline-block;width:42px;height:54px;line-height:54px;text-align:center;border:1px solid ${LINE};border-radius:14px;background:#ffffff;font-size:26px;font-weight:700;color:${INK};box-shadow:0 2px 8px -2px rgba(17,19,24,0.08)">${digit}</span></td>`,
-    )
-    .join("");
+  // Jeden ciąg tekstu: zaznaczenie i kopiowanie zachowują wszystkie sześć cyfr.
   const body = `${bubble(input.origin, `Oto Twój kod logowania.<br><span style="font-weight:400;font-size:14px;color:${INK_2}">Wpisz go na stronie, na której podałeś adres.</span>`)}
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 0 50px"><tr>${tiles}</tr></table>
+<p style="margin:22px 0 0 50px"><code style="display:inline-block;padding:12px 18px;border:1px solid ${LINE};border-radius:14px;background:#ffffff;font-family:Menlo,Consolas,'Courier New',monospace;font-size:30px;line-height:1.4;font-weight:700;letter-spacing:5px;white-space:nowrap;color:${INK};-webkit-user-select:all;user-select:all">${esc(input.code)}</code></p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 0 50px"><tr>
 ${pill("Ważny 10 minut", "#e8eeff", "#3550d4")}${pill("Działa raz", "#e2f4ea", "#1f7a4f")}
 </tr></table>
 <p style="margin:18px 0 0 50px;font-size:13.5px;line-height:1.55;color:${INK_3}">Jeśli to nie Ty prosiłeś o kod, zignoruj tę wiadomość: bez kodu nikt się nie zaloguje.</p>`;
   return {
     to: input.to,
-    subject: `${spaced} to Twój kod do BriefFlow`,
-    html: layout(input.origin, `Kod logowania: ${spaced}. Ważny 10 minut.`, body),
-    text: `Twój kod logowania do BriefFlow: ${spaced}\n\nWpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut i działa tylko raz.\nJeśli to nie Ty prosiłeś o kod, zignoruj tę wiadomość.${footerText}`,
+    subject: `${input.code} to Twój kod do BriefFlow`,
+    html: layout(input.origin, `Kod logowania: ${input.code}. Ważny 10 minut.`, body),
+    text: `Twój kod logowania do BriefFlow:\n${input.code}\n\nWpisz go na stronie, na której podałeś adres. Kod jest ważny 10 minut i działa tylko raz.\nJeśli to nie Ty prosiłeś o kod, zignoruj tę wiadomość.${footerText}`,
   };
 }
 
@@ -142,30 +136,76 @@ ${sendButton("Otwórz brief", url)}`;
 }
 
 /**
- * Wysyłka. Lokalnie (vite dev) z ustawionym MAILPIT_URL mail trafia do Mailpita przez jego API, żeby dało się go
- * obejrzeć; bez tego, i zawsze na produkcji, idzie przez Cloudflare Email Service (binding EMAIL).
+ * Mailpit ma pierwszeństwo w dev. RESEND_API_KEY wybiera Resend poza tym lokalnym podglądem;
+ * bez klucza pozostaje Cloudflare Email Service (binding EMAIL).
+ * Błędy celowo nie zawierają danych wiadomości, adresów ani odpowiedzi dostawcy.
  */
 export async function sendMail(env: Env, mail: Mail): Promise<void> {
   if (import.meta.env.DEV && env.MAILPIT_URL) {
-    const response = await fetch(`${env.MAILPIT_URL.replace(/\/$/, "")}/api/v1/send`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        From: { Email: env.EMAIL_FROM, Name: "Design House" },
-        To: [{ Email: mail.to }],
-        Subject: mail.subject,
-        HTML: mail.html,
-        Text: mail.text,
-      }),
-    });
-    if (!response.ok) throw new Error(`Mailpit: ${response.status}`);
+    const signal = AbortSignal.timeout(15_000);
+    let response: Response;
+    try {
+      response = await fetch(`${env.MAILPIT_URL.replace(/\/$/, "")}/api/v1/send`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        signal,
+        body: JSON.stringify({
+          From: { Email: env.EMAIL_FROM, Name: "Design House" },
+          To: [{ Email: mail.to }],
+          Subject: mail.subject,
+          HTML: mail.html,
+          Text: mail.text,
+        }),
+      });
+    } catch {
+      throw new Error(signal.aborted ? "Mailpit: przekroczono czas wysyłki." : "Mailpit: nie udało się połączyć z usługą wysyłki.");
+    }
+    if (!response.ok) throw new Error(`Mailpit: wysyłka nie powiodła się (HTTP ${response.status}).`);
     return;
   }
-  await env.EMAIL.send({
-    to: mail.to,
-    from: { email: env.EMAIL_FROM, name: "Design House" },
-    subject: mail.subject,
-    html: mail.html,
-    text: mail.text,
-  });
+  if (env.RESEND_API_KEY) {
+    const signal = AbortSignal.timeout(15_000);
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${env.RESEND_API_KEY}`,
+      "content-type": "application/json",
+    };
+    if (mail.idempotencyKey) headers["Idempotency-Key"] = mail.idempotencyKey;
+    let response: Response;
+    try {
+      response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers,
+        signal,
+        body: JSON.stringify({
+          from: `Design House <${env.EMAIL_FROM}>`,
+          to: [mail.to],
+          subject: mail.subject,
+          html: mail.html,
+          text: mail.text,
+        }),
+      });
+    } catch {
+      throw new Error(signal.aborted ? "Resend: przekroczono czas wysyłki." : "Resend: nie udało się połączyć z usługą wysyłki.");
+    }
+    if (!response.ok) throw new Error(`Resend: wysyłka nie powiodła się (HTTP ${response.status}).`);
+    let data: { id?: unknown } | null;
+    try {
+      data = await response.json() as { id?: unknown } | null;
+    } catch {
+      throw new Error(signal.aborted ? "Resend: przekroczono czas wysyłki." : "Resend: niepoprawne potwierdzenie wysyłki.");
+    }
+    if (typeof data?.id !== "string" || !data.id.trim()) throw new Error("Resend: brak potwierdzenia wysyłki.");
+    return;
+  }
+  try {
+    await env.EMAIL.send({
+      to: mail.to,
+      from: { email: env.EMAIL_FROM, name: "Design House" },
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+    });
+  } catch {
+    throw new Error("Cloudflare Email Service: nie udało się wysłać wiadomości.");
+  }
 }

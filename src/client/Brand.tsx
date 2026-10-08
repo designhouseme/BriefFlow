@@ -1,6 +1,5 @@
 // Marka Design House: znak i logotyp DH (pliki w public/brand/dh).
-// BriefFlow to produkt Design House: w nagłówkach stoi znak i logotyp DH, a niebieska kula zostaje
-// postacią BriefFlow (awatar w rozmowie, powitania).
+// Logo apki: czarne klocki DH i nazwa BriefFlow. Niebieska kula zostaje awatarem rozmowy.
 
 /** Znak: trzy zaokrąglone kwadraty stykające się narożnikami, promień stały niezależnie od wielkości. */
 export function DhMark({ className }: { className?: string }) {
@@ -13,7 +12,7 @@ export function DhMark({ className }: { className?: string }) {
   );
 }
 
-/** Znak w kafelku jak favicon DH: ciemny kwadrat, limonkowy znak. */
+/** Czarny znak DH na białym kafelku, także w ciemnym motywie. */
 export function DhTile({ size = 40, className = "" }: { size?: number; className?: string }) {
   return (
     <span className={`dh-tile ${className}`} style={{ width: size, height: size }} aria-hidden>
@@ -32,12 +31,22 @@ export function Wordmark({ className = "" }: { className?: string }) {
   );
 }
 
-/** Logotyp Design House i nazwa produktu obok. */
+/** Logotyp Design House i nazwa produktu obok, jak w pierwotnym topbarze strony. */
 export function BrandLockup({ className = "" }: { className?: string }) {
   return (
     <span className={`lockup ${className}`}>
       <Wordmark />
       <span className="lockup-product">BriefFlow</span>
+    </span>
+  );
+}
+
+/** Logo apki: znak DH i nazwa BriefFlow obok, na białym tle. */
+export function AppBrandLockup({ className = "" }: { className?: string }) {
+  return (
+    <span className={`app-lockup ${className}`}>
+      <DhMark className="app-lockup-mark" />
+      <span className="app-lockup-product">BriefFlow</span>
     </span>
   );
 }

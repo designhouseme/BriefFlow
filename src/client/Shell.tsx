@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { DhTile, Wordmark } from "./Brand";
+import { AppBrandLockup } from "./Brand";
 
 /**
  * Widok klienta (link z tokenem): biały pasek z nazwą briefu i postępem, pod nim szary panel z rozmową.
@@ -9,20 +9,21 @@ export function ClientShell({
   title,
   subtitle,
   value,
+  logoUrl,
   children,
 }: {
   title?: string;
   subtitle?: string;
   value?: number;
+  logoUrl?: string;
   children: ReactNode;
 }) {
   return (
     <div className="client-app">
       <header className="client-head">
-        <a className="client-brand" href="https://designhouse.me" target="_blank" rel="noreferrer" aria-label="Design House">
-          <Wordmark className="client-wordmark" />
-          <DhTile size={32} className="client-tile" />
-        </a>
+        {logoUrl ? <span className="client-brand sender-brand"><img className="sender-logo" src={logoUrl} alt="Logo nadawcy briefu" referrerPolicy="no-referrer" /></span> : <a className="client-brand" href="/" target="_blank" rel="noreferrer" aria-label="BriefFlow">
+          <AppBrandLockup />
+        </a>}
         <div className="client-head-text">
           <span className="client-head-title">{title ?? "BriefFlow"}</span>
           {subtitle && <span className="client-head-sub">{subtitle}</span>}

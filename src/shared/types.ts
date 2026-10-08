@@ -36,6 +36,8 @@ export const CHOICE_TYPES: FieldType[] = ["single_choice", "multi_choice"];
 export interface Option {
   id: string;
   label: string;
+  /** Stały klucz opcji źródłowego szablonu, zachowany po nadaniu świeżego id w kopii. */
+  templateKey?: string;
   /** Wybór tej opcji zmienia wycenę (np. wersja językowa, integracja). Widzi to tylko agencja. */
   quote?: boolean;
 }
@@ -97,6 +99,8 @@ export interface ShowIf {
 
 export interface Field {
   id: string;
+  /** Klucz reguł źródłowego szablonu; id nadal identyfikuje wyłącznie pytanie tego briefu. */
+  templateKey?: string;
   type: FieldType;
   label: string;
   help?: string;
@@ -180,4 +184,6 @@ export interface AiResult {
 export interface AccessInfo {
   role: Role;
   aiEnabled: boolean;
+  /** Prywatny obraz nadawcy, dostępny tylko w ramach uprawnionego konta lub linku klienta. */
+  logoUrl?: string;
 }

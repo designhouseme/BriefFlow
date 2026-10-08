@@ -4,6 +4,7 @@ import {
   IconCopy,
   IconExternalLink,
   IconFile,
+  IconPhoto,
   IconLogout,
   IconMenu2,
   IconMessages,
@@ -15,10 +16,11 @@ import {
   IconWorld,
   IconX,
 } from "@tabler/icons-react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { BriefSummary, Me } from "../shared/account";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import type { AccountUsage, BriefSummary, Me } from "../shared/account";
 import { TEMPLATE_LIST } from "../shared/templates";
-import { ApiError, clientUrl, deleteBrief, getMe, listBriefs, logout, takePrimedMe } from "./api";
+import { ApiError, clientUrl, deleteBrief, getAccountUsage, getMe, listBriefs, listSavedTemplates, logout, primeMe, takePrimedMe, type SavedTemplate } from "./api";
+import { AccountLogoSettings } from "./AccountLogoSettings";
 import { DhTile } from "./Brand";
 import { navigate, onLinkClick } from "./router";
 import { useTheme } from "./theme";
@@ -34,6 +36,14 @@ interface AppState {
   patchBrief: (id: string, patch: Partial<BriefSummary>) => void;
   notify: (message: string) => void;
   openNav: () => void;
+  templates: SavedTemplate[];
+  templatesLoaded: boolean;
+  templatesError: string;
+  refreshTemplates: () => void;
+  updateMe: (patch: Partial<Me>) => void;
+  usage: AccountUsage | null;
+  usageError: string;
+  refreshUsage: () => Promise<void>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -52,22 +62,100 @@ export function firstName(email: string) {
   return part ? part[0].toUpperCase() + part.slice(1) : email;
 }
 
+/** The server resets monthly limits according to the calendar in Poland. */
+export const usageResetDate = (at: number) =>
+  new Date(at).toLocaleDateString("pl-PL", { day: "numeric", month: "long", timeZone: "Europe/Warsaw" });
+
 export function AppShell({ activeId, children }: { activeId: string | null; children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(takePrimedMe);
   const [briefs, setBriefs] = useState<BriefSummary[] | null>(null);
   const [toast, setToast] = useState("");
   const [navOpen, setNavOpen] = useState(false);
+  const [templates, setTemplates] = useState<SavedTemplate[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [templatesError, setTemplatesError] = useState("");
+  const templatesRequest = useRef(0);
+  const [usage, setUsage] = useState<AccountUsage | null>(() => takePrimedMe()?.usage ?? null);
+  const [usageError, setUsageError] = useState("");
+  const usageRequest = useRef(0);
+  const [accountError, setAccountError] = useState("");
+  const [accountLoading, setAccountLoading] = useState(true);
+  const accountRequest = useRef(0);
 
-  useEffect(() => {
-    getMe().then(setMe, (e) => {
+  const loadMe = useCallback(async () => {
+    const request = ++accountRequest.current;
+    setAccountError("");
+    setToast("");
+    setAccountLoading(true);
+    try {
+      const next = await getMe();
+      if (request !== accountRequest.current) return;
+      setMe(next);
+      if (usageRequest.current === 0) setUsage(next.usage);
+    } catch (e) {
+      if (request !== accountRequest.current) return;
       if (e instanceof ApiError && e.status === 401) navigate("/", { replace: true });
-      else setToast((e as Error).message);
-    });
+      else {
+        const message = (e as Error).message || "Nie udało się wczytać konta. Spróbuj ponownie.";
+        setAccountError(message);
+        setToast(message);
+      }
+    } finally {
+      if (request === accountRequest.current) setAccountLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    void loadMe();
+    return () => { accountRequest.current++; };
+  }, [loadMe]);
+
+  const refreshUsage = useCallback(async () => {
+    const request = ++usageRequest.current;
+    setUsageError("");
+    try {
+      const next = await getAccountUsage();
+      if (request !== usageRequest.current) return;
+      setUsage(next);
+    } catch (e) {
+      if (request !== usageRequest.current) return;
+      if (e instanceof ApiError && e.status === 401) navigate("/", { replace: true });
+      else setUsageError((e as Error).message);
+    }
   }, []);
 
   const refresh = useCallback(() => {
+    void refreshUsage();
     listBriefs().then(setBriefs, (e) => {
       if (e instanceof ApiError && e.status === 401) navigate("/", { replace: true });
+    });
+  }, [refreshUsage]);
+
+  const refreshTemplates = useCallback(() => {
+    const request = ++templatesRequest.current;
+    setTemplatesLoaded(false);
+    setTemplatesError("");
+    listSavedTemplates().then((list) => {
+      if (request !== templatesRequest.current) return;
+      setTemplates(list);
+      setTemplatesLoaded(true);
+    }, (e) => {
+      if (request !== templatesRequest.current) return;
+      const message = (e as Error).message;
+      setTemplatesError(message);
+      setTemplatesLoaded(true);
+      setToast(message);
+    });
+  }, []);
+  useEffect(() => {
+    if (me) refreshTemplates();
+  }, [me?.email, refreshTemplates]);
+
+  const updateMe = useCallback((patch: Partial<Me>) => {
+    setMe((current) => {
+      if (!current) return current;
+      const next = { ...current, ...patch };
+      primeMe(next);
+      return next;
     });
   }, []);
 
@@ -81,7 +169,7 @@ export function AppShell({ activeId, children }: { activeId: string | null; chil
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };
-  }, [me, refresh]);
+  }, [me?.email, refresh]);
 
   useEffect(() => {
     if (!toast) return;
@@ -97,14 +185,22 @@ export function AppShell({ activeId, children }: { activeId: string | null; chil
   }, []);
 
   const value = useMemo<AppState | null>(
-    () => (me ? { me, briefs, refresh, patchBrief, notify: setToast, openNav: () => setNavOpen(true) } : null),
-    [me, briefs, refresh, patchBrief],
+    () => (me ? { me, briefs, refresh, patchBrief, templates, templatesLoaded, templatesError, refreshTemplates, updateMe, usage, usageError, refreshUsage, notify: setToast, openNav: () => setNavOpen(true) } : null),
+    [me, briefs, refresh, patchBrief, templates, templatesLoaded, templatesError, refreshTemplates, updateMe, usage, usageError, refreshUsage],
   );
 
   if (!value) {
     return (
-      <div className="app is-loading">
-        <DhTile size={48} className="pulse-soft" />
+      <div className="app is-loading" aria-busy={accountLoading}>
+        {accountError && !accountLoading ? <div className="empty">
+          <DhTile size={48} />
+          <h2>Nie udało się wczytać konta</h2>
+          <p role="alert">{accountError}</p>
+          <button className="btn btn-primary" onClick={() => void loadMe()}>Spróbuj ponownie</button>
+        </div> : <div role="status">
+          <DhTile size={48} className="pulse-soft" />
+          <span className="visually-hidden">Wczytuję konto…</span>
+        </div>}
       </div>
     );
   }
@@ -140,7 +236,7 @@ function ThemeButton({ className, size }: { className: string; size: number }) {
 function Rail({ onBriefs }: { onBriefs: () => void }) {
   return (
     <nav className="rail" aria-label="Aplikacja">
-      <a className="rail-home" href="/app" onClick={(e) => onLinkClick(e, "/app")} aria-label="Design House BriefFlow, nowy brief">
+      <a className="rail-home" href="/app" onClick={(e) => onLinkClick(e, "/app")} aria-label="BriefFlow, nowy brief">
         <DhTile size={40} />
       </a>
       <button className="rail-btn is-active" onClick={onBriefs} aria-label="Briefy" title="Briefy">
@@ -157,9 +253,11 @@ function Rail({ onBriefs }: { onBriefs: () => void }) {
 
 /** Awatar na dole paska ikon: konto i akcje w panelu obok. */
 function AccountButton() {
-  const { me } = useApp();
+  const { me, updateMe, notify, usage } = useApp();
+  const [logoOpen, setLogoOpen] = useState(false);
   const name = firstName(me.email);
   return (
+    <>
     <Popover
       side="right"
       triggerClass="rail-avatar"
@@ -177,7 +275,16 @@ function AccountButton() {
               <span>{me.email}</span>
             </span>
           </div>
+          {usage && <div className="account-usage">
+            <strong>Wersja darmowa</strong>
+            <span>Aktywne briefy: {usage.briefs.used}/{usage.briefs.limit}</span>
+            <span>AI: {Math.max(0, usage.ai.limit - usage.ai.used)} z {usage.ai.limit} dostępnych poleceń</span>
+            <small>Limit AI odnawia się {usageResetDate(usage.ai.resetsAt)}.</small>
+          </div>}
           <div className="pop-items">
+            <button className="pop-item" onClick={(event) => { event.currentTarget.closest(".pop")?.querySelector<HTMLButtonElement>("button[aria-expanded]")?.focus(); close(); setLogoOpen(true); }}>
+              <IconPhoto size={17} aria-hidden /> Twoje logo
+            </button>
             <a className="pop-item" href="/" onClick={close}>
               <IconWorld size={17} aria-hidden /> Strona startowa
             </a>
@@ -195,6 +302,8 @@ function AccountButton() {
         </div>
       )}
     </Popover>
+    {logoOpen && <AccountLogoSettings logoUrl={me.logoUrl} onSaved={(logoUrl) => updateMe({ logoUrl })} onClose={() => setLogoOpen(false)} notify={notify} />}
+    </>
   );
 }
 
@@ -222,7 +331,7 @@ function groupByDay(briefs: BriefSummary[]): Group[] {
 const TEMPLATE_ICON: Record<string, typeof IconWorld> = { www: IconWorld, empty: IconFile };
 
 function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () => void }) {
-  const { briefs, refresh, notify } = useApp();
+  const { briefs, refresh, notify, templates, usage } = useApp();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -288,6 +397,9 @@ function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () =
       <a className="btn btn-primary btn-block" href="/app" onClick={(e) => onLinkClick(e, "/app")}>
         <IconPlus size={17} stroke={2.2} aria-hidden /> Nowy brief
       </a>
+      <p className="sidebar-usage" aria-live="polite">
+        {usage ? <>Aktywne briefy <strong>{usage.briefs.used}/{usage.briefs.limit}</strong></> : "Wczytuję limit briefów…"}
+      </p>
 
       <div className="sidebar-scroll">
         {!searching && (
@@ -312,6 +424,14 @@ function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () =
                   </li>
                 );
               })}
+              {templates.map((t) => (
+                <li key={t.id}>
+                  <a className="side-item" href={`/app?szablon=${encodeURIComponent(t.id)}`} onClick={(e) => onLinkClick(e, `/app?szablon=${encodeURIComponent(t.id)}`)} title={t.description}>
+                    <span className="side-mark tone-3" aria-hidden><IconFile size={15} stroke={1.9} /></span>
+                    <span className="side-text">{t.title}</span>
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -345,7 +465,7 @@ function Sidebar({ activeId, onClose }: { activeId: string | null; onClose: () =
                         <span className="side-text">{briefName(brief)}</span>
                         <span className="side-meta">
                           {brief.completedAt ? (
-                            <IconCircleCheck size={16} stroke={2} aria-label="Klient wysłał brief" />
+                            <IconCircleCheck size={16} stroke={2} aria-label="Brief zakończony" />
                           ) : (
                             `${brief.total ? Math.round((brief.settled / brief.total) * 100) : 0}%`
                           )}

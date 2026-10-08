@@ -1,9 +1,13 @@
 # Skopiuj do .dev.vars i wpisz klucz. Bez klucza aplikacja działa, tylko okno poleceń AI jest wyłączone.
 GEMINI_API_KEY=
 
+# Sekret serwera do wysyłki kodów logowania i powiadomień przez Resend.
+# EMAIL_FROM w wrangler.jsonc musi należeć do domeny zweryfikowanej w Resend.
+RESEND_API_KEY=
+
 # Lokalnie aplikacja loguje się sama, bez maila i kodu. Tu możesz zmienić adres konta deweloperskiego.
 # DEV_EMAIL=dev@designhouse.me
 
 # Lokalny podgląd maili: Mailpit (docker run -d --name dh-mailpit -p 127.0.0.1:8025:8025 -p 127.0.0.1:1025:1025 axllent/mailpit).
-# Z tym adresem maile z dev trafiają do Mailpita (http://127.0.0.1:8025) zamiast do Cloudflare Email Service.
+# Z tym adresem maile z dev trafiają do Mailpita (http://127.0.0.1:8025), także gdy wpiszesz klucz Resend.
 MAILPIT_URL=http://127.0.0.1:8025

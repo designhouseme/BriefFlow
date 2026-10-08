@@ -21,13 +21,29 @@ function domainAllowed(env: Env, email: string): boolean {
   return allowed.length === 0 || allowed.includes(email.split("@")[1]);
 }
 
-/** Zapis tylko z naszej strony: JSON wymusza preflight przy obcym originie, a ciasteczko ma SameSite=Lax. */
+/** Zapis tylko z naszej strony. Czytamy ograniczone ciało także przed odrzuceniem originu. */
 export async function readJson<T>(request: Request): Promise<T | null> {
-  // Ciało czytamy zawsze do końca: nieprzeczytane psuje lokalnemu serwerowi następne żądanie.
-  const text = await request.text().catch(() => "");
-  if (!request.headers.get("content-type")?.includes("application/json")) return null;
+  const reader = request.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let length = 0;
   try {
-    return JSON.parse(text) as T;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > 8192) { await reader.cancel(); return null; }
+      chunks.push(value);
+    }
+  } catch { return null; }
+  if (request.headers.get("origin") !== new URL(request.url).origin) return null;
+  if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") return null;
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+  try {
+    const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    return body && typeof body === "object" && !Array.isArray(body) ? body as T : null;
   } catch {
     return null;
   }
@@ -81,7 +97,7 @@ export async function startLogin(request: Request, env: Env): Promise<Response> 
   const email = normalizeEmail(body?.email);
   if (!email) return json({ error: "Wpisz poprawny adres e-mail." }, 400);
   if (!domainAllowed(env, email)) {
-    return json({ error: "Ten adres nie ma dostępu. Zaloguj się adresem firmowym Design House." }, 403);
+    return json({ error: "Ten adres nie ma dostępu. Użyj adresu z dozwolonej domeny." }, 403);
   }
 
   const result = await accountStub(env, await accountKey(email)).requestCode(email);
@@ -116,6 +132,7 @@ export async function verifyLogin(request: Request, env: Env): Promise<Response>
 }
 
 export async function logout(request: Request, env: Env): Promise<Response> {
+  if (!(await readJson(request))) return json({ error: "Nieprawidłowe żądanie wylogowania." }, 400);
   const cookie = readCookie(request);
   if (cookie) await accountStub(env, cookie.key).endSession(cookie.session);
   return json({ ok: true }, 200, { "set-cookie": sessionCookie("", 0, request) });

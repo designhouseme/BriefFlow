@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { BriefSummary } from "../shared/account";
 import { questions } from "../shared/flow";
 import { briefFromTemplate, TEMPLATE_LIST } from "../shared/templates";
-import { createBrief } from "./api";
+import { createBrief, deleteTemplate } from "./api";
 import { briefName, firstName, MainHead, useApp } from "./AppShell";
 import { ShaderOrb } from "./ShaderOrb";
 import { navigate, onLinkClick } from "./router";
@@ -29,19 +29,29 @@ function when(at: number) {
 }
 
 export function Home({ search }: { search: string }) {
-  const { me, briefs, refresh, notify } = useApp();
+  const { me, briefs, refresh, notify, templates, templatesLoaded, templatesError, refreshTemplates, usage, usageError, refreshUsage } = useApp();
   const preset = new URLSearchParams(search).get("szablon");
-  const [templateId, setTemplateId] = useState(TEMPLATE_LIST.some((t) => t.id === preset) ? preset! : "www");
+  const available = [...TEMPLATE_LIST, ...templates];
+  const [templateId, setTemplateId] = useState(preset || "www");
   const [clientName, setClientName] = useState("");
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
-  // Wybór szablonu z listy bocznej zmienia adres, a ten sam ekran zostaje: przestawiamy wybór.
+  // Zmiana adresu wybiera szablon przed kolejnym renderem. Odświeżenie listy nie nadpisuje
+  // późniejszego wyboru użytkownika, a własny szablon nie zamienia się po drodze na WWW.
   const [lastPreset, setLastPreset] = useState(preset);
   if (preset !== lastPreset) {
     setLastPreset(preset);
-    if (preset && TEMPLATE_LIST.some((t) => t.id === preset)) setTemplateId(preset);
+    setTemplateId(preset || "www");
   }
+  const selectedTemplate = available.find((template) => template.id === templateId);
+  const customSelection = !TEMPLATE_LIST.some((template) => template.id === templateId);
+  const templatePending = customSelection && !templatesLoaded;
+  const templateError = customSelection && templatesLoaded
+    ? templatesError || (!selectedTemplate ? "Ten szablon nie jest już dostępny. Wybierz inny szablon." : "")
+    : "";
+  const briefLimitReached = Boolean(usage && usage.briefs.used >= usage.briefs.limit);
+  const creationBlocked = busy || templatePending || Boolean(templateError) || !usage || briefLimitReached;
 
   const www = useMemo(() => templateSize("www"), []);
 
@@ -54,7 +64,7 @@ export function Home({ search }: { search: string }) {
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (creationBlocked) return;
     setBusy(true);
     try {
       const brief = await createBrief({ templateId, clientName, title: "" });
@@ -62,6 +72,7 @@ export function Home({ search }: { search: string }) {
       navigate(`/app/b/${brief.id}?new=1`);
     } catch (e) {
       notify((e as Error).message);
+      void refreshUsage();
       setBusy(false);
     }
   }
@@ -80,8 +91,10 @@ export function Home({ search }: { search: string }) {
             <div className="home-orb" aria-hidden>
               <ShaderOrb size={240} />
             </div>
+
             <h2 className="home-title">Cześć, {firstName(me.email)}</h2>
             <p className="home-lead">Dla kogo przygotujemy brief? Resztę ustawisz po drodze.</p>
+            {usage && <p className="home-usage">Wersja darmowa: {usage.briefs.used}/{usage.briefs.limit} aktywne briefy · {usage.ai.limit} poleceń AI miesięcznie</p>}
 
             <div className="home-cards">
               <button className="card card-dark" onClick={() => pickTemplate("www")} aria-pressed={templateId === "www"}>
@@ -141,7 +154,7 @@ export function Home({ search }: { search: string }) {
                   <strong className="card-title">{briefName(latest)}</strong>
                   <span className="card-body">
                     {latest.completedAt
-                      ? "Klient wysłał brief."
+                      ? "Brief zakończony."
                       : `${latest.settled} z ${latest.total} odpowiedzi.`}
                   </span>
                   <span className="meter meter-wide" aria-hidden>
@@ -163,6 +176,33 @@ export function Home({ search }: { search: string }) {
                 </div>
               )}
             </div>
+            <section className="saved-templates" aria-label="Wybierz szablon briefu">
+              <h2 className="aside-title">Twoje szablony</h2>
+              <p className="home-template-note">Zacznij od pustego briefu albo zapisz przygotowane pytania jako własny szablon.</p>
+              <div className="saved-template-list">
+                <button className={`saved-template ${templateId === "empty" ? "is-selected" : ""}`} aria-pressed={templateId === "empty"} onClick={() => pickTemplate("empty")}>
+                  <IconFileText size={20} aria-hidden />
+                  <span><strong>Pusty brief</strong><small>Dodaj własne sekcje i pytania.</small></span>
+                </button>
+                {templates.map((template) => (
+                  <div className="saved-template-row" key={template.id}>
+                    <button className={`saved-template ${templateId === template.id ? "is-selected" : ""}`} aria-pressed={templateId === template.id} onClick={() => pickTemplate(template.id)}>
+                      <IconFileText size={20} aria-hidden />
+                      <span><strong>{template.title}</strong><small>{template.description || "Twój zestaw pytań, bez odpowiedzi klienta."}</small></span>
+                    </button>
+                    <button className="icon-btn" aria-label={`Usuń szablon: ${template.title}`} title="Usuń szablon" onClick={async () => {
+                      if (!confirm(`Usunąć szablon „${template.title}”? Utworzone z niego briefy zostaną.`)) return;
+                      try {
+                        await deleteTemplate(template.id);
+                        if (templateId === template.id) setTemplateId("www");
+                        refreshTemplates();
+                        notify("Usunięto szablon.");
+                      } catch (error) { notify((error as Error).message); }
+                    }}><IconX size={16} aria-hidden /></button>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
 
@@ -186,20 +226,28 @@ export function Home({ search }: { search: string }) {
                 type="button"
                 className="bar-chip"
                 onClick={() => setTemplateId("www")}
-                aria-label={`Szablon: ${TEMPLATE_LIST.find((t) => t.id === templateId)?.title}. Wróć do szablonu Strona WWW`}
+                aria-label={`Szablon: ${selectedTemplate?.title || (templatePending ? "wczytywanie" : "niedostępny")}. Wróć do szablonu Strona WWW`}
               >
-                {TEMPLATE_LIST.find((t) => t.id === templateId)?.title}
+                {selectedTemplate?.title || (templatePending ? "Wczytuję szablon…" : "Niedostępny szablon")}
                 <IconX size={14} stroke={2.4} aria-hidden />
               </button>
             )}
-            <button className="btn-send" disabled={busy}>
-              <span className="btn-send-label">{busy ? "Tworzę…" : "Utwórz brief"}</span>
+            <button className="btn-send" disabled={creationBlocked}>
+              <span className="btn-send-label">{busy ? "Tworzę…" : templatePending || (!usage && !usageError) ? "Wczytuję…" : "Utwórz brief"}</span>
               <span className="btn-send-icon" aria-hidden>
                 <IconArrowUp size={18} stroke={2.4} />
               </span>
             </button>
           </div>
-          <p className="dock-note">Klient dostanie swój link. Pytania zmienisz potem ręcznie albo poleceniem dla AI.</p>
+          {briefLimitReached && usage ? <p className="dock-note usage-limit" role="status">
+            Masz {usage.briefs.limit} aktywne briefy. Zakończ jeden w menu „Więcej akcji briefu” albo usuń niepotrzebny z listy. Zakończone briefy zostają dostępne.
+          </p> : !usage ? <p className={`dock-note ${usageError ? "usage-error" : ""}`} role={usageError ? "alert" : "status"}>
+            {usageError || "Sprawdzam limit aktywnych briefów…"} {usageError && <button type="button" className="btn btn-small btn-quiet" onClick={() => void refreshUsage()}>Spróbuj ponownie</button>}
+          </p> : templatePending ? <p className="dock-note" role="status">Wczytuję wybrany szablon…</p> : templateError ? (
+            <p className="dock-note form-error" role="alert">
+              {templateError} {templatesError && <button type="button" className="btn btn-small btn-quiet" onClick={refreshTemplates}>Spróbuj ponownie</button>}
+            </p>
+          ) : <p className="dock-note">Klient dostanie swój link. Pytania zmienisz potem ręcznie albo poleceniem dla AI.</p>}
         </form>
       </div>
     </>

@@ -115,7 +115,7 @@ function buildOptions(labels: string[] | undefined, previous: Option[] | undefin
     let id = existing?.id ?? slug(label);
     while (usedIds.has(id)) id = `${id}_${usedIds.size}`;
     usedIds.add(id);
-    return quoted.has(key) ? { id, label, quote: true } : { id, label };
+    return { id, label, ...(existing?.templateKey ? { templateKey: existing.templateKey } : {}), ...(quoted.has(key) ? { quote: true } : {}) };
   });
 }
 
@@ -143,6 +143,7 @@ export function buildField(
   if (!label) throw new OpError("Pole musi mieć tytuł.");
   const field: Field = {
     id: meta.id,
+    ...(meta.previous?.templateKey ? { templateKey: meta.previous.templateKey } : {}),
     type: input.type,
     label,
     help: cleanText(input.help, MAX_HELP, "Podpowiedź"),

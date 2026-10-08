@@ -116,6 +116,7 @@ export function Menu({ label, items, className = "" }: { label: string; items: M
                 className={item.danger ? "is-danger" : ""}
                 disabled={item.disabled}
                 onClick={() => {
+                  root.current?.querySelector<HTMLButtonElement>(".menu-trigger")?.focus();
                   close();
                   item.onSelect();
                 }}

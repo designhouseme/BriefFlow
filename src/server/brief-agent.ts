@@ -16,11 +16,13 @@ import {
 } from "../shared/ops";
 import { openQuestions } from "../shared/flow";
 import { briefFromTemplate } from "../shared/templates";
-import type { Actor, AiResult, AnswerInput, Brief, FieldInput, LogEntry, Role } from "../shared/types";
+import type { Actor, AiResult, AnswerInput, Brief, FieldInput, LogEntry, Role, Section } from "../shared/types";
 import type { BriefSummary } from "../shared/account";
 import { accountStub } from "./accounts";
 import { briefSentMail, sendMail } from "./emails";
 import { runCommand } from "./ai";
+import { freshTemplateSections } from "./account-resources";
+import { boundedAiCommand } from "./account-quotas";
 
 type ConnState = { role: Role };
 
@@ -60,6 +62,7 @@ function summaryOf(brief: Brief): Omit<BriefSummary, "clientToken"> {
  */
 export class BriefAgent extends Agent<Env, Brief | null> {
   initialState: Brief | null = null;
+  private aiRunning = false;
 
   onStart() {
     this.ensureTables();
@@ -73,15 +76,45 @@ export class BriefAgent extends Agent<Env, Brief | null> {
 
   // --- Dostęp (wywoływane przez Worker przez RPC Durable Object, nie przez przeglądarkę) ---
 
-  async initBrief(input: { templateId: string; title: string; clientName: string; owner: string; origin: string }) {
+  async initBrief(input: { templateId: string; title: string; clientName: string; owner: string; origin: string; template?: { title: string; sections: Section[] } }) {
     this.ensureTables();
     if (this.state) throw new Error("Brief już istnieje.");
     const tokens = { agency: randomToken(), client: randomToken() };
     // origin: adres aplikacji, z którego utworzono brief; trafia do linków w mailach.
     this.sql`INSERT INTO meta (key, value) VALUES ('agency_token', ${tokens.agency}), ('client_token', ${tokens.client}), ('owner', ${input.owner}), ('origin', ${input.origin})`;
-    this.setState(briefFromTemplate(input.templateId, { id: this.name, title: input.title, clientName: input.clientName }));
+    if (input.template) {
+      const now = Date.now();
+      this.setState({
+        id: this.name,
+        title: input.title || input.template.title,
+        clientName: input.clientName,
+        templateId: input.templateId,
+        createdAt: now,
+        updatedAt: now,
+        sections: freshTemplateSections(input.template.sections),
+        answers: {},
+        canUndo: false,
+      });
+    } else {
+      this.setState(briefFromTemplate(input.templateId, { id: this.name, title: input.title, clientName: input.clientName }));
+    }
     this.logEvent("agency", `Utworzono brief „${this.state!.title}”.`);
     return { ...tokens, summary: summaryOf(this.state!) };
+  }
+
+  /** Worker-only RPC: source is the current authoritative brief, never browser-supplied structure. */
+  templateSnapshot(owner: string): { title: string; sections: Section[] } | null {
+    this.ensureTables();
+    const [row] = this.sql<{ value: string }>`SELECT value FROM meta WHERE key = 'owner'`;
+    if (!this.state || row?.value !== owner) return null;
+    return { title: this.state.title, sections: structuredClone(this.state.sections) };
+  }
+
+  /** Worker-only RPC: a client can view the sender's logo through their own brief link. */
+  ownerKeyForToken(token: string): string | null {
+    if (this.roleForToken(token) !== "client") return null;
+    const [row] = this.sql<{ value: string }>`SELECT value FROM meta WHERE key = 'owner'`;
+    return row?.value ?? null;
   }
 
   /** Usunięcie briefu z konta agencji: kasuje wszystkie dane tej instancji. */
@@ -141,6 +174,12 @@ export class BriefAgent extends Agent<Env, Brief | null> {
     if (!role || !allowed.includes(role)) throw new Error("Brak uprawnień.");
     if (!this.state) throw new Error("Brief nie istnieje.");
     return role;
+  }
+
+  private ownerAccount() {
+    const [owner] = this.sql<{ value: string }>`SELECT value FROM meta WHERE key = 'owner'`;
+    if (!owner) throw new Error("Nie ma konta właściciela briefu.");
+    return accountStub(this.env, owner.value);
   }
 
   // --- Dziennik i cofanie ---
@@ -231,12 +270,18 @@ export class BriefAgent extends Agent<Env, Brief | null> {
 
   /** Klient zamyka brief na podsumowaniu. Otwarte pytania zostają do uzupełnienia tym samym linkiem. */
   @callable()
-  complete() {
+  async complete() {
     const role = this.requireRole("agency", "client");
+    const alreadyCompleted = Boolean(this.state!.completedAt);
     const open = openQuestions(this.state!).length;
-    this.logEvent(role, open ? `Zakończono brief, ${open} pytań do uzupełnienia` : "Zakończono brief, wszystko uzupełnione");
-    this.setState({ ...this.state!, completedAt: Date.now(), updatedAt: Date.now() });
-    if (role === "client") this.ctx.waitUntil(this.notifyOwner(open));
+    if (!alreadyCompleted) {
+      const at = Math.max(Date.now(), this.state!.updatedAt + 1);
+      this.logEvent(role, open ? `Zakończono brief, ${open} pytań do uzupełnienia` : "Zakończono brief, wszystko uzupełnione");
+      this.setState({ ...this.state!, completedAt: at, updatedAt: at });
+    }
+    // Release the account slot before the RPC resolves; completed history remains editable.
+    await this.ownerAccount().completeBrief(this.name, this.state!.completedAt!);
+    if (role === "client" && !alreadyCompleted) this.ctx.waitUntil(this.notifyOwner(open));
   }
 
   /** Mail do osoby z agencji, która utworzyła brief: klient go wysłał. Błąd wysyłki nie psuje briefu. */
@@ -336,16 +381,52 @@ export class BriefAgent extends Agent<Env, Brief | null> {
   @callable()
   async runAiCommand(command: string): Promise<AiResult> {
     this.requireRole("agency");
+    if (typeof command !== "string") return { ok: false, summary: "Wpisz polecenie.", changes: [] };
     const text = command.trim().slice(0, 1000);
     if (!text) return { ok: false, summary: "Wpisz polecenie.", changes: [] };
     if (!this.env.GEMINI_API_KEY) return { ok: false, summary: "AI jest wyłączone: brak klucza API.", changes: [] };
+    if (this.aiRunning) return { ok: false, summary: "AI już pracuje nad tym briefem. Poczekaj na zakończenie poprzedniego polecenia.", changes: [] };
 
-    const outcome = await runCommand(this.env.GEMINI_API_KEY, this.state!, text);
-    if (outcome.ok && outcome.changes.length > 0) {
-      // Brief mógł się zmienić w trakcie (np. klient odpowiadał), więc bierzemy świeże odpowiedzi, strukturę od AI.
-      this.commitStructure("ai", `Polecenie AI: „${text}”`, { ...this.state!, sections: outcome.brief.sections });
-      for (const change of outcome.changes) this.logEvent("ai", change);
+    this.aiRunning = true;
+    let reservation: string | undefined;
+    let consumed = false;
+    let account: ReturnType<typeof accountStub> | undefined;
+    try {
+      account = this.ownerAccount();
+      const quota = await account.reserveAi(this.name);
+      if (!quota.ok) return { ok: false, summary: "Wykorzystano 10 poleceń AI w tym miesiącu. Limit odnowi się pierwszego dnia kolejnego miesiąca.", changes: [] };
+      reservation = quota.reservation;
+      const snapshot = structuredClone(this.state!);
+      const sectionsBefore = JSON.stringify(snapshot.sections);
+      const outcome = await boundedAiCommand((signal) => runCommand(this.env.GEMINI_API_KEY!, snapshot, text, signal));
+      if (!outcome.ok || (!outcome.summary.trim() && outcome.changes.length === 0)) return { ok: false, summary: outcome.summary || "AI zwróciło pustą odpowiedź. Spróbuj ponownie.", changes: [] };
+      const stale = () => !this.state || JSON.stringify(this.state.sections) !== sectionsBefore;
+      if (stale()) return { ok: false, summary: "Pytania zmieniły się podczas pracy AI. Twoje zmiany zostały zachowane. Uruchom polecenie ponownie na aktualnym briefie.", changes: [] };
+      if (!(await account.commitAi(reservation))) return { ok: false, summary: "Polecenie AI trwało zbyt długo. Spróbuj ponownie.", changes: [] };
+      // The account RPC yields: an edit during that round trip also makes the result stale.
+      if (stale()) return { ok: false, summary: "Pytania zmieniły się podczas pracy AI. Twoje zmiany zostały zachowane. Uruchom polecenie ponownie na aktualnym briefie.", changes: [] };
+      if (outcome.ok && outcome.changes.length > 0) {
+        const current = this.state;
+        if (!current || JSON.stringify(current.sections) !== sectionsBefore) {
+          return {
+            ok: false,
+            summary: "Pytania zmieniły się podczas pracy AI. Twoje zmiany zostały zachowane. Uruchom polecenie ponownie na aktualnym briefie.",
+            changes: [],
+          };
+        }
+        // Klient może odpowiadać, a agencja zmieniać nagłówek podczas pracy AI.
+        // Z wyniku modelu przyjmujemy tylko strukturę, reszta pochodzi z najnowszego stanu.
+        this.commitStructure("ai", `Polecenie AI: „${text}”`, { ...current, sections: outcome.brief.sections });
+        for (const change of outcome.changes) this.logEvent("ai", change);
+      }
+      consumed = true; // A valid answer, including an explanation with no changes, costs one command.
+      return { ok: outcome.ok, summary: outcome.summary, changes: outcome.changes };
+    } catch (error) {
+      return { ok: false, summary: error instanceof Error && (error.message === "AI_TIMEOUT" || error.name === "AbortError") ? "AI przekroczyło czas pracy. Spróbuj krótszego polecenia." : "Nie udało się wykonać polecenia AI. Spróbuj ponownie.", changes: [] };
+    } finally {
+      if (reservation && !consumed && account) await account.cancelAi(reservation).catch(() => undefined);
+      // Nieoczekiwany błąd SDK także musi pozwolić na ponowną próbę.
+      this.aiRunning = false;
     }
-    return { ok: outcome.ok, summary: outcome.summary, changes: outcome.changes };
   }
 }
