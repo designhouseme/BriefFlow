@@ -278,6 +278,7 @@ function AccountButton() {
           {usage && <div className="account-usage">
             <strong>Wersja darmowa</strong>
             <span>Aktywne briefy: {usage.briefs.used}/{usage.briefs.limit}</span>
+            {usage.smartBriefs && <span>SmartBrief Free: {usage.smartBriefs.used}/{usage.smartBriefs.limit} wykorzystanych łącznie</span>}
             <span>AI: {Math.max(0, usage.ai.limit - usage.ai.used)} z {usage.ai.limit} dostępnych poleceń</span>
             <small>Limit AI odnawia się {usageResetDate(usage.ai.resetsAt)}.</small>
           </div>}

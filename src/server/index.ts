@@ -6,6 +6,9 @@ import { accountStub, JURISDICTION } from "./accounts";
 import { getSession, logout, type Session, startLogin, verifyLogin } from "./auth";
 import { briefSentMail, loginCodeMail, sendMail } from "./emails";
 import { fromBase64, LOGO_MAX_BYTES, TEMPLATE_ID, toBase64, validateLogo, type StoredLogo } from "./account-resources";
+import { SmartBriefError, validateSmartBriefSource } from "../shared/smartbrief";
+import { generateSmartBrief } from "./smartbrief";
+import { boundedAiCommand } from "./account-quotas";
 
 export { BriefAgent } from "./brief-agent";
 export { AccountStore } from "./accounts";
@@ -48,9 +51,9 @@ async function boundedBytes(request: Request, limit: number): Promise<Uint8Array
   return bytes;
 }
 
-async function smallJson<T extends Record<string, unknown>>(request: Request): Promise<T | null> {
+async function smallJson<T extends Record<string, unknown>>(request: Request, limit = 8192): Promise<T | null> {
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") return null;
-  const bytes = await boundedBytes(request, 8192);
+  const bytes = await boundedBytes(request, limit);
   if (!bytes) return null;
   try {
     const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
@@ -150,6 +153,42 @@ async function createBrief(request: Request, env: Env, session: Session): Promis
     // A failed initialization must leave neither a quota slot nor an orphan client-accessible DO.
     await agent?.destroyBrief().catch(() => undefined);
     return json({ error: "Nie udało się utworzyć briefu. Spróbuj ponownie." }, 503);
+  }
+}
+
+async function createSmartBrief(request: Request, env: Env, session: Session): Promise<Response> {
+  if (!sameOrigin(request)) return forbidden(request);
+  if (!env.GEMINI_API_KEY) return json({ error: "SmartBrief będzie dostępny po włączeniu AI." }, 503);
+  // Unicode text and JSON escaping can take up to six bytes per source character.
+  const body = await smallJson<{ source?: unknown; clientName?: unknown }>(request, 320_000);
+  if (!body || (body.clientName !== undefined && (typeof body.clientName !== "string" || body.clientName.length > 120))) return json({ error: "Nieprawidłowy materiał. Wklej tekst do 50 000 znaków." }, 400);
+  let source: string;
+  try { source = validateSmartBriefSource(body.source); }
+  catch (error) { return json({ error: (error as Error).message }, 400); }
+  const id = newBriefId();
+  // One account transaction reserves both capacity and a lifetime ingest unit.
+  const slot = await session.account.reserveBrief(id, true);
+  if (!slot.ok) return json({ error: slot.usage.smartBriefs.used >= slot.usage.smartBriefs.limit
+    ? "Wykorzystano 3 SmartBriefy dostępne na koncie Free. Możesz nadal tworzyć briefy z szablonu."
+    : "Masz 3 aktywne briefy. Zakończ lub usuń jeden, aby utworzyć SmartBrief.", usage: slot.usage }, 429);
+  let agent: Awaited<ReturnType<typeof briefAgent>> | undefined;
+  let generated = false;
+  try {
+    const brief = await boundedAiCommand((signal) => generateSmartBrief(env.GEMINI_API_KEY!, source, { id, clientName: String(body.clientName ?? "").trim() }, signal));
+    generated = true;
+    if (request.signal.aborted) throw new Error("Przerwano tworzenie briefu, limit nie został zużyty.");
+    agent = await briefAgent(env, id);
+    const created = await agent.initBrief({ templateId: "smartbrief", title: brief.title, clientName: brief.clientName, owner: session.key, origin: new URL(request.url).origin, smartBrief: brief });
+    if (!(await session.account.commitBrief(slot.reservation, { ...created.summary, agencyToken: created.agency, clientToken: created.client }))) throw new Error("SmartBrief reservation expired");
+    return json({ id }, 201);
+  } catch (error) {
+    await session.account.cancelBriefReservation(id, slot.reservation).catch(() => undefined);
+    await session.account.removeBrief(id).catch(() => undefined);
+    await agent?.destroyBrief().catch(() => undefined);
+    const message = error instanceof Error && error.message === "AI_TIMEOUT"
+      ? "Analiza przekroczyła czas pracy. Spróbuj krótszego materiału, limit nie został zużyty."
+      : !generated && error instanceof SmartBriefError ? error.message : "Nie udało się zapisać SmartBriefu. Spróbuj ponownie, limit nie został zużyty.";
+    return json({ error: message }, 503);
   }
 }
 
@@ -279,6 +318,12 @@ export default {
       if (!sameOrigin(request)) return forbidden(request);
       if (!TEMPLATE_ID.test(savedTemplate[1]) || !(await session.account.removeTemplate(savedTemplate[1]))) return json({ error: "Nie ma takiego szablonu." }, 404);
       return json({ ok: true });
+    }
+
+    if (pathname === "/api/smartbriefs" && method === "POST") {
+      const session = await getSession(request, env);
+      if (!session) return unauthorized();
+      return createSmartBrief(request, env, session);
     }
 
     if (pathname === "/api/briefs" && (method === "GET" || method === "POST")) {

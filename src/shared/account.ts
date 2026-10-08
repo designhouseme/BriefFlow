@@ -24,6 +24,8 @@ export interface Me {
 }
 
 export interface AccountUsage {
+  /** Łączny limit udanych ingestów; usunięcie briefu nie zwraca jednostki. */
+  smartBriefs: { used: number; limit: number };
   /** Zakończone briefy pozostają w historii. Rezerwacja tworzenia zajmuje miejsce. */
   briefs: { used: number; limit: number };
   /** Zajęte jednostki, w tym trwające polecenia; błędy zwalniają rezerwację. */

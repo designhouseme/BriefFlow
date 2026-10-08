@@ -15,7 +15,7 @@ const REQUEST_TIMEOUT_MS = 20_000;
 const CONNECTION_ERROR = "Nie można połączyć się z BriefFlow. Sprawdź połączenie i spróbuj ponownie.";
 const TIMEOUT_ERROR = "Serwer nie odpowiedział na czas. Spróbuj ponownie.";
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+async function request<T>(url: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (init?.signal?.aborted) abort();
@@ -40,7 +40,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
           // Reject before aborting so the timeout message wins the fetch abort race.
           reject(new ApiError(TIMEOUT_ERROR, 0));
           controller.abort();
-        }, REQUEST_TIMEOUT_MS);
+        }, timeoutMs);
       }),
     ]);
   } catch (error) {
@@ -107,6 +107,9 @@ export const listBriefs = () => request<BriefSummary[]>("/api/briefs");
 
 export const createBrief = (input: { templateId: string; clientName: string; title: string }) =>
   post<{ id: string }>("/api/briefs", input);
+
+export const createSmartBrief = (input: { source: string; clientName: string }) =>
+  request<{ id: string }>("/api/smartbriefs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }, 75_000);
 
 export const deleteBrief = (id: string) => request<{ ok: true }>(`/api/briefs/${encodeURIComponent(id)}`, { method: "DELETE" });
 

@@ -22,7 +22,9 @@ Brief przed projektem strony to zwykle długi formularz: klient go odkłada, cz�
 2. **Wysyłasz link.** Klient dostaje jeden link. Bez konta i bez hasła.
 3. **Czytasz brief na żywo.** Odpowiedzi wpadają przy każdym kliknięciu. Gdy klient wyśle brief, dostajesz maila.
 
-Bezpłatne konto ma **3 aktywne briefy i 10 poleceń AI miesięcznie**. Wysłany lub zakończony brief zwalnia miejsce i pozostaje do odczytu oraz edycji. Miesiąc AI liczony jest według czasu w Warszawie; poprawna odpowiedź AI bez zmiany pytań też zużywa polecenie, a błędy nie.
+Bezpłatne konto ma **3 aktywne briefy, 3 SmartBriefy łącznie i 10 poleceń AI miesięcznie**. Wysłany lub zakończony brief zwalnia miejsce i pozostaje do odczytu oraz edycji. Miesiąc AI liczony jest według czasu w Warszawie; poprawna odpowiedź AI bez zmiany pytań też zużywa polecenie, a błędy nie. SmartBrief ma osobny limit, który nie odnawia się po usunięciu lub zakończeniu briefu.
+
+**SmartBrief**: wybierz go w widoku „Nowy brief” i wklej transkrypcję, mail, notatki lub opis projektu (80–50 000 znaków). AI rozpoznaje branżę i rodzaj projektu, dobiera sekcje i pola oraz przenosi jednoznaczne informacje do odpowiedzi. Przy nich znajdziesz krótkie cytaty źródłowe. Podsumowanie pokazuje braki ważne przed startem, pozostałe pytania i niejasności. Lista braków aktualizuje się przy uzupełnianiu. Przejrzyj odczytane informacje przed wysłaniem linku klientowi. Pełny materiał jest przesyłany do Gemini, ale nie jest zapisywany w bazie aplikacji. Błąd analizy lub zapisu nie zużywa SmartBriefu ani miesięcznego polecenia AI.
 
 ## Twój klient po prostu klika
 
@@ -64,7 +66,7 @@ Nie. Klient dostaje link i od razu odpowiada. Logujesz się tylko Ty, kodem z ma
 Odpowiedzi zapisują się przy każdym kliknięciu. Klient wraca tym samym linkiem i zaczyna tam, gdzie przerwał. Pominięte pytania czekają na uzupełnienie.
 
 **Czy AI odpowiada za klienta?**<br>
-Nie. AI zmienia tylko zestaw pytań i tylko na Twoje polecenie. Odpowiedzi daje klient albo Ty.
+Polecenia AI w edytorze zmieniają zestaw pytań. SmartBrief dodatkowo odczytuje odpowiedzi z wklejonego materiału: każda wymaga cytatu źródłowego. Brakujące lub niepewne informacje pozostają do uzupełnienia przez Ciebie albo klienta.
 
 **Czy możemy wypełniać brief razem?**<br>
 Tak. Ty i klient widzicie te same zmiany na żywo, więc brief da się wypełnić na spotkaniu albo podczas rozmowy.

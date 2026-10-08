@@ -42,6 +42,7 @@ import { FIELD_TYPE_ICON, sectionIcon, toneOf } from "./icons";
 import { Orb } from "./Orb";
 import { ClientShell, percent } from "./Shell";
 import { Menu, Popover, scrollToElement, useCopy } from "./ui";
+import { SmartBriefReview } from "./SmartBrief";
 
 // --- Agencja: brief w aplikacji (wejście z sesji, bez tokenu w adresie) ---
 
@@ -178,7 +179,8 @@ function ConnectedAgency({ id, aiEnabled, isNew }: { id: string; aiEnabled: bool
           <div className="editor-col">
             <div className="editor-scroll">
               <div className="editor-main">
-              {isNew && <NewBriefNote id={id} stub={agent.stub} />}
+              {brief.smartBrief && <SmartBriefReview brief={brief} />}
+              {isNew && !brief.smartBrief && <NewBriefNote id={id} stub={agent.stub} />}
               {brief.sections.map((section, index) => (
                 <SectionBlock
                   key={section.id}

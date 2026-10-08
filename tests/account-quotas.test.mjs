@@ -143,3 +143,47 @@ test("bounded AI execution aborts a hanging request and leaves later requests us
   assert.equal(signal.aborted, true);
   assert.equal(await boundedAiCommand(async () => "retry", 20), "retry");
 });
+
+test("SmartBrief lifetime quota permits only three concurrent ingests and survives deletion and month changes", async () => {
+  const { store, db, summary, advance } = harness();
+  try {
+    const results = await Promise.all(Array.from({ length: 20 }, (_, i) => Promise.resolve().then(() => ({ id: `smart-${i}`, ...store.reserveBrief(`smart-${i}`, true) }))));
+    const accepted = results.filter((row) => row.ok);
+    assert.equal(accepted.length, 3);
+    assert.equal(store.usage().smartBriefs.used, 3);
+    for (const row of accepted) {
+      assert.equal(store.commitBrief(row.reservation, summary(row.id)), true);
+      store.removeBrief(row.id);
+    }
+    advance(40 * 24 * 3600_000);
+    assert.equal(store.usage().briefs.used, 0);
+    assert.equal(store.usage().smartBriefs.used, 3);
+    assert.equal(store.usage().ai.used, 0);
+    assert.equal(store.reserveBrief("fourth-smart", true).ok, false);
+    assert.equal(store.reserveBrief("regular-template").ok, true);
+  } finally { db.close(); }
+});
+
+test("failed, expired and rolled-back SmartBriefs refund both limits without refunding other ingests", () => {
+  const { store, db, summary, advance } = harness();
+  try {
+    const good = store.reserveBrief("good", true);
+    assert.equal(store.commitBrief(good.reservation, summary("good")), true);
+    const failed = store.reserveBrief("failed", true);
+    store.cancelBriefReservation("failed", failed.reservation);
+    assert.equal(store.usage().smartBriefs.used, 1);
+    const expired = store.reserveBrief("expired-smart", true);
+    advance(3 * 60_000 + 1);
+    assert.equal(store.commitBrief(expired.reservation, summary("expired-smart")), false);
+    assert.equal(store.usage().smartBriefs.used, 1);
+    const lostResponse = store.reserveBrief("lost-response", true);
+    assert.equal(store.commitBrief(lostResponse.reservation, summary("lost-response")), true);
+    store.cancelBriefReservation("lost-response", "unrelated-reservation");
+    assert.equal(store.usage().smartBriefs.used, 2);
+    store.cancelBriefReservation("lost-response", lostResponse.reservation);
+    store.removeBrief("lost-response");
+    assert.equal(store.usage().smartBriefs.used, 1);
+    assert.equal(store.usage().briefs.used, 1);
+    assert.equal(store.usage().ai.used, 0);
+  } finally { db.close(); }
+});

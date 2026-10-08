@@ -16,7 +16,7 @@ export const COMPANY = {
   email: "maciej@designhouse.me",
 } as const;
 
-const LEGAL_VERSION = { version: "0.2 (wersja robocza)", since: "8 października 2026 r." } as const;
+const LEGAL_VERSION = { version: "0.3 (wersja robocza)", since: "8 października 2026 r." } as const;
 
 function CompanyData({ role }: { role: string }) {
   return (
@@ -143,7 +143,8 @@ const PRIVACY: Section[] = [
           <li>
             <strong>Ustawienia konta</strong>: opcjonalne logo nadawcy oraz własne szablony sekcji i pytań. Materiały klienta pozostają linkami do plików.
           </li>
-          <li><strong>Wykorzystanie usługi</strong>: liczba aktywnych briefów i licznik poleceń AI w danym miesiącu, potrzebne do obsługi limitów konta.</li>
+          <li><strong>SmartBrief</strong>: materiał wklejony do analizy (np. transkrypcja), przesyłany do Gemini. W bazie aplikacji zapisujemy wynik: pytania, odczytane odpowiedzi, krótkie cytaty źródłowe, rozpoznaną branżę, typ projektu, podsumowanie i uwagi. Pełnego materiału nie zapisujemy.</li>
+          <li><strong>Wykorzystanie usługi</strong>: liczba aktywnych briefów, licznik poleceń AI w danym miesiącu i łączny licznik SmartBriefów, potrzebne do obsługi limitów konta.</li>
           <li>
             <strong>Dane techniczne</strong>: przy każdym żądaniu serwery Cloudflare przetwarzają adres IP, czas, adres
             podstrony i typ przeglądarki. Są potrzebne, żeby aplikacja działała i była chroniona przed nadużyciami.
@@ -200,8 +201,9 @@ const PRIVACY: Section[] = [
             aplikacji pozwala też używać Cloudflare Email Service jako alternatywnego transportu maili.
           </li>
           <li>
-            Google (Gemini API): tylko gdy osoba wysyłająca brief użyje polecenia dla AI, które zmienia pytania briefu. Do
-            modelu trafia wtedy opis briefu, w tym odpowiedzi klienta, i treść polecenia. AI nie odpowiada za klienta.
+            Google (Gemini API): gdy osoba wysyłająca brief użyje polecenia dla AI albo SmartBriefu. Przy poleceniu do
+            modelu trafia opis briefu, w tym odpowiedzi klienta, i treść polecenia. Przy SmartBriefie trafia wklejony materiał;
+            AI dobiera pytania i odczytuje zawarte w nim informacje. Wynik wymaga sprawdzenia przez nadawcę.
           </li>
           <li>dostawca naszej poczty e-mail: korespondencja;</li>
           <li>doradcy prawni, księgowi i techniczni, gdy jest to potrzebne.</li>
@@ -338,6 +340,7 @@ const TERMS: Section[] = [
             lub wynik odrzucony z powodu równoczesnej zmiany pytań nie zużywa polecenia. Trwające polecenie zajmuje
             tymczasowo miejsce w limicie.
           </li>
+          <li>Konto Free ma <strong>3 SmartBriefy łącznie</strong>, niezależnie od miesięcznych poleceń AI. SmartBrief tworzy brief z wklejonego tekstu i zajmuje miejsce w limicie aktywnych briefów. Błąd analizy lub zapisu nie zużywa SmartBriefu; trwająca analiza tymczasowo rezerwuje jednostkę. Usunięcie lub zakończenie briefu nie odnawia tego limitu.</li>
           <li>Jedno konto należy do jednego adresu e-mail. Nie ma zespołów, ról współpracowników ani wspólnego konta agencji.</li>
           <li>Link klientowi wysyłasz sam. Aplikacja nie wysyła zaproszeń ani automatycznych przypomnień.</li>
         </ul>
@@ -398,6 +401,7 @@ const TERMS: Section[] = [
         Korzystaj z AI tylko wtedy, gdy możesz przekazać te dane dostawcy modelu. Przejrzyj wynik przed wysłaniem
         briefu klientowi. Po wykorzystaniu limitu nadal możesz edytować pytania ręcznie.
       </p>
+      <p>SmartBrief tworzy pytania dopasowane do branży na podstawie wklejonego tekstu oraz odczytuje z niego odpowiedzi. Jednoznaczne informacje są zapisywane z cytatem źródłowym; brakujące lub niepewne ustalenia wymagają uzupełnienia. Materiał wejściowy jest przesyłany do Gemini. Pełnego tekstu nie zapisujemy w bazie aplikacji, ale odczytane odpowiedzi, cytaty i podsumowanie są częścią briefu dostępnego przez link klienta.</p>
       </>
     ),
   },

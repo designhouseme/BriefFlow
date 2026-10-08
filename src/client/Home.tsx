@@ -1,4 +1,4 @@
-import { IconArrowUp, IconCircleCheck, IconFileText, IconPencil, IconWand, IconWorld, IconX } from "@tabler/icons-react";
+import { IconArrowRight, IconArrowUp, IconCircleCheck, IconFileText, IconPencil, IconWand, IconWorld, IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BriefSummary } from "../shared/account";
 import { questions } from "../shared/flow";
@@ -7,6 +7,7 @@ import { createBrief } from "./api";
 import { briefName, firstName, MainHead, useApp } from "./AppShell";
 import { ShaderOrb } from "./ShaderOrb";
 import { navigate, onLinkClick } from "./router";
+import { SmartBriefCreator } from "./SmartBrief";
 
 const SECONDS_PER_QUESTION = 12;
 
@@ -36,6 +37,7 @@ export function Home({ search }: { search: string }) {
   const [clientName, setClientName] = useState("");
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<"template" | "smart">("template");
 
   // Zmiana adresu wybiera szablon przed kolejnym renderem. Odświeżenie listy nie nadpisuje
   // późniejszego wyboru użytkownika, a własny szablon nie zamienia się po drodze na WWW.
@@ -43,6 +45,7 @@ export function Home({ search }: { search: string }) {
   if (preset !== lastPreset) {
     setLastPreset(preset);
     setTemplateId(preset || "www");
+    setMode("template");
   }
   const selectedTemplate = available.find((template) => template.id === templateId);
   const customSelection = !TEMPLATE_LIST.some((template) => template.id === templateId);
@@ -78,6 +81,7 @@ export function Home({ search }: { search: string }) {
   }
 
   const pickTemplate = (id: string) => {
+    setMode("template");
     setTemplateId(id);
     input.current?.focus();
   };
@@ -95,6 +99,17 @@ export function Home({ search }: { search: string }) {
             <h2 className="home-title">Cześć, {firstName(me.email)}</h2>
             <p className="home-lead">Dla kogo przygotujemy brief? Resztę ustawisz po drodze.</p>
             {usage && <p className="home-usage">Wersja darmowa: {usage.briefs.used}/{usage.briefs.limit} aktywne briefy · {usage.ai.limit} poleceń AI miesięcznie</p>}
+
+            {mode === "smart" ? <SmartBriefCreator onBusy={setBusy} onClose={() => setMode("template")} /> : <>
+            <button className="smartbrief-entry" disabled={busy} onClick={() => setMode("smart")}>
+              <span className="smartbrief-mark tone-5" aria-hidden><IconWand size={18} stroke={1.9} /></span>
+              <span className="smartbrief-entry-text">
+                <strong>Masz już notatki lub transkrypcję?</strong>
+                <span>SmartBrief zamieni je w brief dopasowany do branży.</span>
+              </span>
+              <span className="badge badge-soft">{usage?.smartBriefs ? `${Math.max(0, usage.smartBriefs.limit - usage.smartBriefs.used)} z ${usage.smartBriefs.limit} Free` : "3 Free"}</span>
+              <IconArrowRight size={16} aria-hidden />
+            </button>
 
             <div className="home-cards">
               <button className="card card-dark" onClick={() => pickTemplate("www")} aria-pressed={templateId === "www"}>
@@ -176,10 +191,11 @@ export function Home({ search }: { search: string }) {
                 </div>
               )}
             </div>
+            </>}
           </div>
         </div>
 
-        <form className="dock" onSubmit={create}>
+        {mode === "template" && <form className="dock" onSubmit={create}>
           <div className="bar">
             <span className="bar-lead tone-1" aria-hidden>
               <IconPencil size={19} stroke={1.9} />
@@ -221,7 +237,7 @@ export function Home({ search }: { search: string }) {
               {templateError} {templatesError && <button type="button" className="btn btn-small btn-quiet" onClick={refreshTemplates}>Spróbuj ponownie</button>}
             </p>
           ) : <p className="dock-note">Klient dostanie swój link. Pytania zmienisz potem ręcznie albo poleceniem dla AI.</p>}
-        </form>
+        </form>}
       </div>
     </>
   );

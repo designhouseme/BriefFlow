@@ -232,8 +232,8 @@ export class AccountStore extends DurableObject<Env> {
     return this.ctx.storage.transactionSync(() => this.quotas.usage());
   }
 
-  reserveBrief(id: string) {
-    return this.ctx.storage.transactionSync(() => this.quotas.reserveBrief(id));
+  reserveBrief(id: string, smart = false) {
+    return this.ctx.storage.transactionSync(() => this.quotas.reserveBrief(id, smart));
   }
 
   commitBrief(reservation: string, brief: BriefSummary & { agencyToken: string }) {

@@ -13,6 +13,12 @@ Domyślnie można zalogować się dowolnym adresem e-mail. `ALLOWED_EMAIL_DOMAIN
 
 Bezpłatne konto ma do **3 aktywnych briefów** oraz **10 poleceń AI w miesiącu kalendarzowym według Europe/Warsaw**. Aktywny brief nie ma `completedAt`. Wysłanie przez klienta lub zakończenie przez właściciela zwalnia miejsce, ale zachowuje odpowiedzi i działający link. Zakończony brief pozostaje do odczytu i edycji; nie ma osobnej operacji ponownego otwarcia. Do limitu AI liczy się poprawna odpowiedź dostawcy, także wyjaśnienie bez zmian; błąd, timeout lub wynik odrzucony po równoczesnej zmianie pytań nie zużywa limitu. Limity konta nie blokują odpowiadania klientom w już utworzonych briefach.
 
+SmartBrief ma osobny limit **3 udanych ingestów łącznie na konto Free**, bez odnowienia. Nie zużywa miesięcznych poleceń AI, lecz zajmuje aktywny brief. Rezerwacja obu limitów następuje w jednej transakcji konta; błąd analizy, timeout lub błąd zapisu zwalnia rezerwacje. Usunięcie lub zakończenie briefu nie zwraca wykorzystanego SmartBriefu.
+
+`POST /api/smartbriefs { source, clientName? }` wymaga sesji, własnego Originu i JSON. Źródło ma 80–50 000 znaków, body do 320 000 bajtów. Gemini otrzymuje cały materiał, dobiera branżę i projekt oraz zwraca sekcje i pola. Serwer waliduje wynik operacjami `ops.ts`; odpowiedź może zostać wpisana tylko z dosłownym cytatem obecnym w źródle. Niepewne ustalenia pozostają pytaniami. Pełnego materiału nie zapisujemy w bazie aplikacji. Odpowiedzi odczytane z tekstu są oznaczane jako odpowiedzi agencji. Stan briefu zawiera raport (branża, typ projektu, podsumowanie, uwagi, liczba znaków, czas analizy) i cytaty w `reason` pól; widzi go także klient z ważnym linkiem, choć panel analizy jest pokazywany agencji. Retencję materiału u dostawcy AI określa jego konfiguracja i umowa, a nie ten kod.
+
+Tabela konta `smartbrief_usage` przechowuje id briefu, identyfikator rezerwacji, stan `reserved` / `used` i czas wygaśnięcia. Rezerwacje wygasają po 3 min; użyte jednostki pozostają do usunięcia konta, również po usunięciu briefu. `/api/me` oraz `/api/account/usage` zwracają `smartBriefs: { used, limit }`.
+
 ## Role w przetwarzaniu danych
 
 Design House jest operatorem narzędzia oraz administratorem danych konta, kontaktu i bezpieczeństwa. Nadawca briefu określa cele zbierania danych swoich klientów i odpowiada za ich podstawę oraz obowiązek informacyjny. Gdy narzędzia używa inna agencja, nie można opisywać każdego briefu jako projektu realizowanego przez Design House. Przy projektach własnych Design House może występować także jako administrator odpowiedzi.
@@ -73,7 +79,7 @@ Logo konta widzi właściciel i klient z ważnym linkiem do jego briefu. Materia
 
 - **Logi Workers** (`observability.enabled`): Cloudflare przechowuje logi i ślady żądań (adres, czas, status, komunikaty z `console`) zgodnie z ustawieniami konta. Kodów logowania nie logujemy poza trybem dev.
 - **Maile** (Resend lub Cloudflare Email Service): adres odbiorcy, temat i treść, czyli kod logowania albo powiadomienie o wysłanym briefie. Lokalny Mailpit ma pierwszeństwo w dev; klucz Resend pozostaje sekretem serwera.
-- **AI** (Google Gemini, `src/server/ai.ts`): tylko gdy osoba z agencji wyśle polecenie dla AI. Do modelu idzie opis briefu: pytania i **odpowiedzi klienta**, oraz treść polecenia. Bez klucza `GEMINI_API_KEY` nic nie jest wysyłane.
+- **AI** (Google Gemini, `src/server/ai.ts`, `src/server/smartbrief.ts`): po poleceniu agencji do modelu idzie opis briefu: pytania i **odpowiedzi klienta**, oraz treść polecenia. Po uruchomieniu SmartBriefu idzie wklejony materiał. Bez klucza `GEMINI_API_KEY` nic nie jest wysyłane.
 - **Przeglądarka**: ciasteczko `dh_session` (tylko agencja) i wybór motywu w `localStorage` (`dh-theme`). Nie ma analityki ani ciasteczek reklamowych.
 
 ## Co wymaga potwierdzenia przed zdjęciem statusu roboczego dokumentów

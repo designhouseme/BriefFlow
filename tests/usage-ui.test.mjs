@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const monthlyUsage = (active = 0, aiUsed = 0) => ({
   briefs: { used: active, limit: 3 },
   ai: { used: aiUsed, limit: 10, resetsAt: Date.UTC(2026, 9, 31, 23) },
+  smartBriefs: { used: 0, limit: 3 },
 });
 
 // Exercise the production components' form handlers and JSX gates. Browser-only
@@ -63,7 +64,7 @@ function home(appPatch = {}) {
     useApp: () => app,
     TEMPLATE_LIST: [{ id: "www", title: "Strona WWW" }, { id: "empty", title: "Pusty brief" }],
     templateSize: () => ({ count: 10, minutes: 2 }),
-    MainHead: "header", ShaderOrb: "span", firstName: () => "Qa", briefName: (b) => b.title,
+    MainHead: "header", ShaderOrb: "span", SmartBriefCreator: "SmartBriefCreator", firstName: () => "Qa", briefName: (b) => b.title,
     pct: () => 0, when: () => "dziś", onLinkClick: () => {}, deleteTemplate: async () => {},
     createBrief: async (input) => { calls.create.push(input); return { id: "created-test" }; },
     navigate: (url) => calls.routes.push(url),
@@ -210,4 +211,63 @@ test("completed briefs have no action that finishes them again", () => {
   const h = agency(Date.now());
   const menu = nodes(h.render()).find((node) => node.type === "MainHead").props.actions.props.children.find((node) => node.type === "Menu");
   assert.equal(menu.props.items.some((item) => item.label === "Zakończ brief"), false);
+});
+
+function smart(appPatch = {}, provider = async () => ({ id: "smart-test" }), material = "Opis testowego projektu. ".repeat(8)) {
+  const calls = { create: [], usage: 0, routes: [], busy: [] };
+  const app = { me: { aiEnabled: true }, usage: monthlyUsage(), usageError: "", refresh() {}, refreshUsage: async () => { calls.usage++; }, ...appPatch };
+  const view = component("SmartBriefCreator", "../src/client/SmartBrief.tsx", {
+    useApp: () => app, SMARTBRIEF_MIN_CHARACTERS: 80, SMARTBRIEF_MAX_CHARACTERS: 50_000,
+    createSmartBrief: async (input) => { calls.create.push(input); return provider(); },
+    navigate: (url) => calls.routes.push(url),
+  }, [material, "Studio testowe"]);
+  return { app, calls, state: view.state, render: () => view.render({ onBusy: (busy) => calls.busy.push(busy) }) };
+}
+
+test("SmartBrief is reachable from Home and switches creation mode", () => {
+  const h = home();
+  const trigger = nodes(h.render()).find((node) => node.type === "button" && node.props.className === "smartbrief-entry");
+  trigger.props.onClick();
+  const tree = h.render();
+  assert.ok(nodes(tree).some((node) => node.type === "SmartBriefCreator"));
+  assert.ok(!nodes(tree).some((node) => node.type === "form" && node.props.className === "dock"));
+});
+
+test("SmartBrief button and form handler enforce source validity, both quotas and AI availability", async () => {
+  for (const h of [
+    smart({ me: { aiEnabled: false } }),
+    smart({ usage: null }),
+    smart({ usage: { ...monthlyUsage(), smartBriefs: { used: 3, limit: 3 } } }),
+    smart({ usage: monthlyUsage(3) }),
+    smart({}, undefined, "Za krótki opis"),
+  ]) {
+    const tree = h.render();
+    assert.equal(nodes(tree).find((node) => node.type === "button" && node.props.className === "btn btn-primary").props.disabled, true);
+    await tree.props.onSubmit(submitEvent());
+    assert.equal(h.calls.create.length, 0);
+  }
+});
+
+test("SmartBrief has an independent AI quota and prevents synchronous double submission", async () => {
+  let finish;
+  const h = smart({ usage: monthlyUsage(0, 10) }, () => new Promise((resolve) => { finish = resolve; }));
+  const form = h.render();
+  const pending = form.props.onSubmit(submitEvent());
+  await form.props.onSubmit(submitEvent());
+  assert.equal(h.calls.create.length, 1);
+  finish({ id: "smart-test" }); await pending;
+  assert.deepEqual(h.calls.routes, ["/app/b/smart-test"]);
+  assert.deepEqual(h.calls.busy, [true, false]);
+  assert.equal(h.calls.usage, 1);
+});
+
+test("failed SmartBrief creation retains source, shows the error and refreshes quota", async () => {
+  const h = smart({}, async () => { throw new Error("Analiza nieudana, limit nie został zużyty."); });
+  const before = h.state[0];
+  await h.render().props.onSubmit(submitEvent());
+  assert.equal(h.state[0], before);
+  assert.equal(h.state[2], false);
+  assert.equal(h.calls.usage, 1);
+  assert.match(textOf(h.render()), /Analiza nieudana/);
+  assert.deepEqual(h.calls.routes, []);
 });

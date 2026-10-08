@@ -2,6 +2,7 @@ import type { AccountUsage } from "../shared/account";
 
 export const FREE_BRIEF_LIMIT = 3;
 export const FREE_AI_LIMIT = 10;
+export const FREE_SMART_BRIEF_LIMIT = 3;
 export const AI_EXECUTION_MS = 60_000;
 const RESERVATION_MS = 3 * 60_000;
 const ZONE = "Europe/Warsaw";
@@ -33,11 +34,13 @@ export class AccountQuotas {
     this.newId = newId;
     sql.exec(`CREATE TABLE IF NOT EXISTS brief_reservations (brief_id TEXT PRIMARY KEY, reservation TEXT NOT NULL UNIQUE, expires_at INTEGER NOT NULL)`);
     sql.exec(`CREATE TABLE IF NOT EXISTS ai_usage (id TEXT PRIMARY KEY, brief_id TEXT NOT NULL, month TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('reserved', 'used')), expires_at INTEGER NOT NULL)`);
+    sql.exec(`CREATE TABLE IF NOT EXISTS smartbrief_usage (brief_id TEXT PRIMARY KEY, reservation TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('reserved', 'used')), expires_at INTEGER NOT NULL)`);
   }
 
   private clearExpired(now: number) {
     this.sql.exec(`DELETE FROM brief_reservations WHERE expires_at <= ?`, now);
     this.sql.exec(`DELETE FROM ai_usage WHERE status = 'reserved' AND expires_at <= ?`, now);
+    this.sql.exec(`DELETE FROM smartbrief_usage WHERE status = 'reserved' AND expires_at <= ?`, now);
   }
 
   usage(): AccountUsage {
@@ -46,15 +49,18 @@ export class AccountQuotas {
     const month = calendarMonth(now);
     const [{ used: briefs }] = this.sql.exec<{ used: number }>(`SELECT (SELECT COUNT(*) FROM briefs WHERE completed_at IS NULL) + (SELECT COUNT(*) FROM brief_reservations) AS used`).toArray();
     const [{ used: ai }] = this.sql.exec<{ used: number }>(`SELECT COUNT(*) AS used FROM ai_usage WHERE month = ?`, month.key).toArray();
-    return { briefs: { used: briefs, limit: FREE_BRIEF_LIMIT }, ai: { used: ai, limit: FREE_AI_LIMIT, resetsAt: month.resetsAt } };
+    const [{ used: smartBriefs }] = this.sql.exec<{ used: number }>(`SELECT COUNT(*) AS used FROM smartbrief_usage`).toArray();
+    return { briefs: { used: briefs, limit: FREE_BRIEF_LIMIT }, ai: { used: ai, limit: FREE_AI_LIMIT, resetsAt: month.resetsAt }, smartBriefs: { used: smartBriefs, limit: FREE_SMART_BRIEF_LIMIT } };
   }
 
-  reserveBrief(briefId: string): QuotaReservation {
+  reserveBrief(briefId: string, smart = false): QuotaReservation {
     const usage = this.usage();
     if (usage.briefs.used >= FREE_BRIEF_LIMIT) return { ok: false, usage };
+    if (smart && usage.smartBriefs.used >= FREE_SMART_BRIEF_LIMIT) return { ok: false, usage };
     if (this.sql.exec<{ id: string }>(`SELECT id FROM briefs WHERE id = ?`, briefId).toArray().length || this.sql.exec<{ brief_id: string }>(`SELECT brief_id FROM brief_reservations WHERE brief_id = ?`, briefId).toArray().length) return { ok: false, usage };
     const reservation = this.newId();
     this.sql.exec(`INSERT INTO brief_reservations (brief_id, reservation, expires_at) VALUES (?, ?, ?)`, briefId, reservation, this.now() + RESERVATION_MS);
+    if (smart) this.sql.exec(`INSERT INTO smartbrief_usage (brief_id, reservation, status, expires_at) VALUES (?, ?, 'reserved', ?)`, briefId, reservation, this.now() + RESERVATION_MS);
     return { ok: true, reservation, usage: this.usage() };
   }
 
@@ -63,12 +69,15 @@ export class AccountQuotas {
     const [row] = this.sql.exec<{ reservation: string }>(`SELECT reservation FROM brief_reservations WHERE brief_id = ?`, briefId).toArray();
     if (row?.reservation !== reservation) return false;
     insert();
-    this.cancelBrief(briefId, reservation);
+    this.sql.exec(`UPDATE smartbrief_usage SET status = 'used' WHERE brief_id = ? AND reservation = ?`, briefId, reservation);
+    this.sql.exec(`DELETE FROM brief_reservations WHERE brief_id = ? AND reservation = ?`, briefId, reservation);
     return true;
   }
 
   cancelBrief(briefId: string, reservation: string) {
     this.sql.exec(`DELETE FROM brief_reservations WHERE brief_id = ? AND reservation = ?`, briefId, reservation);
+    // Also refunds a committed ingest when its commit RPC response was lost and creation is rolled back.
+    this.sql.exec(`DELETE FROM smartbrief_usage WHERE brief_id = ? AND reservation = ?`, briefId, reservation);
   }
 
   reserveAi(briefId: string): QuotaReservation {

@@ -151,6 +151,18 @@ export interface Brief {
   canUndo: boolean;
   /** Kiedy klient kliknął „Gotowe” na podsumowaniu (może potem wrócić i uzupełnić). */
   completedAt?: number;
+  /** Wynik ingestu; surowa transkrypcja nie jest zapisywana w briefie. */
+  smartBrief?: SmartBriefReport;
+}
+
+export interface SmartBriefReport {
+  industry: string;
+  projectType: string;
+  summary: string;
+  /** Brak dopasowania branży, sprzeczności i inne kwestie wymagające sprawdzenia. */
+  warnings: string[];
+  sourceCharacters: number;
+  generatedAt: number;
 }
 
 /** Dane pola podawane przy dodawaniu/edycji (bez id i pochodzenia). Opcje jako etykiety. */

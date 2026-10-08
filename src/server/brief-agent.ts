@@ -76,13 +76,15 @@ export class BriefAgent extends Agent<Env, Brief | null> {
 
   // --- Dostęp (wywoływane przez Worker przez RPC Durable Object, nie przez przeglądarkę) ---
 
-  async initBrief(input: { templateId: string; title: string; clientName: string; owner: string; origin: string; template?: { title: string; sections: Section[] } }) {
+  async initBrief(input: { templateId: string; title: string; clientName: string; owner: string; origin: string; template?: { title: string; sections: Section[] }; smartBrief?: Brief }) {
     this.ensureTables();
     if (this.state) throw new Error("Brief już istnieje.");
     const tokens = { agency: randomToken(), client: randomToken() };
     // origin: adres aplikacji, z którego utworzono brief; trafia do linków w mailach.
     this.sql`INSERT INTO meta (key, value) VALUES ('agency_token', ${tokens.agency}), ('client_token', ${tokens.client}), ('owner', ${input.owner}), ('origin', ${input.origin})`;
-    if (input.template) {
+    if (input.smartBrief) {
+      this.setState({ ...input.smartBrief, id: this.name });
+    } else if (input.template) {
       const now = Date.now();
       this.setState({
         id: this.name,

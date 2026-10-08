@@ -116,6 +116,12 @@ export function FieldCard({ brief, field, role, stub, run, editing, setEditing, 
         )}
       </header>
       {field.help && <p className="help">{field.help}</p>}
+      {role === "agency" && brief.smartBrief && field.reason && (
+        <details className="smartbrief-evidence">
+          <summary>{field.reason.includes("Z materiału:") ? "Cytat z materiału" : "Dlaczego to pytanie?"}</summary>
+          <p>{field.reason}</p>
+        </details>
+      )}
       {role === "agency" && field.showIf && (
         <p className="condition">
           <IconGitBranch size={15} aria-hidden /> {conditionText(brief, field.showIf)}
