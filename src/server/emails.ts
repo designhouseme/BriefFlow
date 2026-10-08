@@ -195,6 +195,11 @@ export async function sendMail(env: Env, mail: Mail): Promise<void> {
       throw new Error(signal.aborted ? "Resend: przekroczono czas wysyłki." : "Resend: niepoprawne potwierdzenie wysyłki.");
     }
     if (typeof data?.id !== "string" || !data.id.trim()) throw new Error("Resend: brak potwierdzenia wysyłki.");
+    // Identyfikator pozwala odnaleźć status dostarczenia w Resend, bez logowania
+    // adresu, kodu ani treści maila. Przyjęcie wiadomości nie oznacza dostarczenia.
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.id)) {
+      console.info("Email accepted", { provider: "resend", messageId: data.id });
+    }
     return;
   }
   try {

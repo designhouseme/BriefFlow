@@ -12,9 +12,9 @@ const compiled = ts.transpileModule(source.replaceAll("import.meta.env.DEV", "__
 const fakeKey = "re_synthetic_test_key_not_a_real_secret";
 const mail = { to: "client@example.test", subject: "Test briefu", html: "<p>Test</p>", text: "Test" };
 
-function transport(fetch, { dev = false, abortSignal = AbortSignal } = {}) {
+function transport(fetch, { dev = false, abortSignal = AbortSignal, logger = { info() {} } } = {}) {
   const exports = {};
-  new Function("exports", "fetch", "__DEV", "AbortSignal", compiled)(exports, fetch, dev, abortSignal);
+  new Function("exports", "fetch", "__DEV", "AbortSignal", "console", compiled)(exports, fetch, dev, abortSignal, logger);
   return exports.sendMail;
 }
 
@@ -113,6 +113,16 @@ test("Resend omits idempotency header when caller has no stable key", async () =
     return accepted();
   });
   await sendMail(environment({ RESEND_API_KEY: fakeKey }).env, mail);
+});
+
+test("Resend acceptance logs only a message identifier, never mail contents or credentials", async () => {
+  const logs = [];
+  const logger = { info: (...args) => logs.push(args) };
+  await transport(async () => accepted(), { logger })(environment({ RESEND_API_KEY: fakeKey }).env, mail);
+  assert.deepEqual(logs, [["Email accepted", { provider: "resend", messageId: "5d14cd21-0c5c-4e6f-b729-52b850348afa" }]]);
+  const sendMail = transport(async () => Response.json({ id: `untrusted ${mail.to} ${fakeKey}` }), { logger });
+  await sendMail(environment({ RESEND_API_KEY: fakeKey }).env, mail);
+  assert.equal(logs.length, 1, "arbitrary provider strings are never written to logs");
 });
 
 test("Resend HTTP failure reports status without reading or leaking provider messages", async () => {

@@ -171,3 +171,86 @@ test("sending a code has a synchronous duplicate-submit guard and a retry after 
   await resend.props.onClick();
   assert.equal(h.calls.start.length, 2);
 });
+
+test("a rate limit after a failed send keeps the email step honest and allows explicit entry of an earlier code", async () => {
+  let attempts = 0;
+  const h = auth({ step: "email", send: () => Promise.reject(++attempts === 1
+    ? new ApiError("Nie można połączyć się z BriefFlow.", 0)
+    : new ApiError("Następny kod możesz zamówić za 23 s.", 429, { retryAfter: 23 })) });
+  await h.render().props.onSubmit(event());
+  assert.equal(h.state[0], "email");
+  await h.render().props.onSubmit(event());
+  const limited = h.render();
+  assert.equal(h.state[0], "email");
+  assert.equal(codeInput(limited), undefined);
+  assert.match(textOf(limited), /Następny kod możesz zamówić za 23 s/);
+  assert.doesNotMatch(textOf(limited), /Wpisz kod wysłany|Kod już wysłany/);
+  assert.match(textOf(sendButton(limited)), /Wyślij kod za 23 s/);
+  assert.equal(sendButton(limited).props.disabled, true);
+  await limited.props.onSubmit(event());
+  assert.equal(h.calls.start.length, 2, "the email handler enforces the visible cooldown");
+  const enter = nodes(limited).find((node) => node.type === "button" && textOf(node) === "Mam kod z maila");
+  assert.ok(enter);
+  enter.props.onClick();
+  assert.equal(h.state[0], "code");
+  assert.ok(codeInput(h.render()));
+  assert.equal(h.calls.start.length, 2);
+  assert.equal(h.calls.verify.length, 0);
+});
+
+test("a new address resets the failed-send cooldown while case and surrounding spaces do not bypass it", async () => {
+  let attempts = 0;
+  const h = auth({ step: "email", send: () => ++attempts === 1
+    ? Promise.reject(new ApiError("Następny kod możesz zamówić za 23 s.", 429, { retryAfter: 23 }))
+    : Promise.resolve({ ok: true }) });
+  await h.render().props.onSubmit(event());
+  nodes(h.render()).find((node) => node.type === "input").props.onChange({ target: { value: " QA@EXAMPLE.TEST " } });
+  await h.render().props.onSubmit(event());
+  assert.equal(h.state[6], 23);
+  assert.equal(h.calls.start.length, 1);
+  nodes(h.render()).find((node) => node.type === "input").props.onChange({ target: { value: "other@example.test" } });
+  const changed = h.render();
+  assert.equal(h.state[6], 0);
+  assert.equal(sendButton(changed).props.disabled, false);
+  assert.equal(nodes(changed).some((node) => node.props?.role === "alert"), false);
+  assert.equal(nodes(changed).some((node) => node.type === "button" && textOf(node) === "Mam kod z maila"), false);
+  await changed.props.onSubmit(event());
+  assert.deepEqual(h.calls.start, ["qa@example.test", "other@example.test"]);
+  assert.equal(h.state[0], "code");
+});
+
+test("a confirmed delivery failure remains a visible email error with an immediately available retry", async () => {
+  const h = auth({ step: "email", send: () => Promise.reject(new ApiError("Nie udało się wysłać maila. Spróbuj za chwilę.", 502)) });
+  await h.render().props.onSubmit(event());
+  const failed = h.render();
+  assert.equal(h.state[0], "email");
+  assert.match(textOf(failed), /Nie udało się wysłać maila/);
+  assert.equal(sendButton(failed).props.disabled, false);
+  assert.equal(codeInput(failed), undefined);
+  assert.equal(nodes(failed).some((node) => node.type === "button" && textOf(node) === "Mam kod z maila"), false);
+});
+
+for (const retryAfter of [undefined, -1, "invalid", Infinity]) {
+  test(`malformed retryAfter ${String(retryAfter)} cannot silently enter the code step or lock the form`, async () => {
+    const h = auth({ step: "email", send: () => Promise.reject(new ApiError("Spróbuj ponownie za chwilę.", 429, { retryAfter })) });
+    await h.render().props.onSubmit(event());
+    const failed = h.render();
+    assert.equal(h.state[0], "email");
+    assert.equal(h.state[6], 0);
+    assert.equal(sendButton(failed).props.disabled, false);
+    assert.match(textOf(failed), /Spróbuj ponownie za chwilę/);
+  });
+}
+
+test("a resend rate limit preserves an earlier code and displays the server error", async () => {
+  const h = auth({ code: "123456", send: () => Promise.reject(new ApiError("Następny kod możesz zamówić za 23 s.", 429, { retryAfter: 23 })) });
+  const resend = nodes(h.render()).find((node) => node.type === "button" && textOf(node) === "Wyślij ponownie");
+  await resend.props.onClick();
+  const limited = h.render();
+  assert.equal(h.state[0], "code");
+  assert.equal(h.state[2], "123456");
+  assert.match(textOf(limited), /Następny kod możesz zamówić za 23 s/);
+  assert.match(textOf(limited), /Wyślij ponownie za 23 s/);
+  assert.equal(sendButton(limited).props.disabled, false, "entering an earlier code is still possible");
+  assert.equal(h.calls.verify.length, 0);
+});

@@ -17,6 +17,7 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [wait, setWait] = useState(0);
+  const [canEnterCode, setCanEnterCode] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
   const requestPending = useRef(false);
 
@@ -32,7 +33,7 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
 
   async function send(event?: React.FormEvent) {
     event?.preventDefault();
-    if (requestPending.current || busy || !email.trim() || (step === "code" && wait > 0)) return;
+    if (requestPending.current || busy || !email.trim() || wait > 0) return;
     requestPending.current = true;
     setBusy(true);
     setError("");
@@ -40,17 +41,17 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
       const result = await startLogin(email);
       setDevCode(result.devCode ?? "");
       setCode("");
+      setCanEnterCode(false);
       setStep("code");
       setWait(30);
     } catch (e) {
       const retry = e instanceof ApiError ? Number(e.data.retryAfter) : 0;
-      if (retry && step === "email") {
-        // Kod już poszedł: przechodzimy do wpisywania zamiast blokować.
-        setStep("code");
-        setWait(retry);
-      } else {
-        setError((e as Error).message);
-        if (retry) setWait(retry);
+      setError((e as Error).message);
+      if (e instanceof ApiError && e.status === 429 && Number.isFinite(retry) && retry > 0) {
+        setWait(Math.ceil(retry));
+        // A rate limit does not confirm delivery. Let someone with an earlier
+        // email choose the code field explicitly, without claiming a new send.
+        if (step === "email") setCanEnterCode(true);
       }
     } finally {
       requestPending.current = false;
@@ -93,7 +94,17 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
               autoComplete="email"
               placeholder="Twój adres e-mail"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next.trim().toLowerCase() !== email.trim().toLowerCase()) {
+                  setWait(0);
+                  setCanEnterCode(false);
+                  setCode("");
+                  setDevCode("");
+                }
+                setError("");
+                setEmail(next);
+              }}
               disabled={busy}
               autoFocus={autoFocus}
               required
@@ -101,8 +112,8 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
               aria-describedby={error ? ids.error : ids.note}
             />
           </label>
-          <button className="btn-send" disabled={busy || !email.trim()}>
-            <span className="btn-send-label">{busy ? "Wysyłam…" : "Wyślij kod"}</span>
+          <button className="btn-send" disabled={busy || wait > 0 || !email.trim()}>
+            <span className="btn-send-label">{busy ? "Wysyłam…" : wait > 0 ? `Wyślij kod za ${wait} s` : "Wyślij kod"}</span>
             <span className="btn-send-icon" aria-hidden>
               <IconArrowUp size={18} stroke={2.4} />
             </span>
@@ -117,6 +128,11 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
             Aby rozpocząć, wpisz swój adres e-mail. Wyślemy Ci kod logowania.
           </p>
         )}
+        {canEnterCode && <div className="auth-actions">
+          <button type="button" className="link-btn" disabled={busy} onClick={() => { setStep("code"); setError(""); }}>
+            Mam kod z maila
+          </button>
+        </div>}
       </form>
     );
   }
@@ -179,6 +195,7 @@ export function AuthForm({ onDone, autoFocus }: { onDone: (email: string) => voi
           onClick={() => {
             setStep("email");
             setError("");
+            setCanEnterCode(true);
           }}
         >
           <IconArrowLeft size={15} aria-hidden /> Zmień adres

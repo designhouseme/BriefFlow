@@ -39,7 +39,7 @@ export function accountStub(env: Env, key: string) {
   return namespace.get(namespace.idFromName(key));
 }
 
-export type CodeRequest = { ok: true; code: string } | { ok: false; retryAfter: number };
+export type CodeRequest = { ok: true; code: string; requestId: number } | { ok: false; retryAfter: number };
 export type CodeCheck = { ok: true; session: string } | { ok: false; error: string };
 
 type BriefRow = {
@@ -169,14 +169,19 @@ export class AccountStore extends DurableObject<Env> {
     this.sql.exec(`INSERT OR REPLACE INTO profile (key, value) VALUES ('email', ?)`, email);
     // Nowy kod unieważnia poprzednie: ważny jest zawsze ostatni z maila.
     this.sql.exec(`UPDATE codes SET used = 1 WHERE used = 0`);
-    this.sql.exec(
-      `INSERT INTO codes (hash, created_at, expires_at) VALUES (?, ?, ?)`,
+    const [requested] = this.sql.exec<{ id: number }>(
+      `INSERT INTO codes (hash, created_at, expires_at) VALUES (?, ?, ?) RETURNING id`,
       hash,
       now,
       now + CODE_TTL,
-    );
+    ).toArray();
     this.sql.exec(`DELETE FROM codes WHERE created_at < ?`, now - 24 * 3600_000);
-    return { ok: true, code };
+    return { ok: true, code, requestId: requested.id };
+  }
+
+  /** Failed production delivery invalidates only its own code and releases its resend limits. */
+  cancelCodeRequest(requestId: number) {
+    this.sql.exec(`DELETE FROM codes WHERE id = ?`, requestId);
   }
 
   async verifyCode(code: string): Promise<CodeCheck> {

@@ -100,16 +100,22 @@ export async function startLogin(request: Request, env: Env): Promise<Response> 
     return json({ error: "Ten adres nie ma dostępu. Użyj adresu z dozwolonej domeny." }, 403);
   }
 
-  const result = await accountStub(env, await accountKey(email)).requestCode(email);
+  const account = accountStub(env, await accountKey(email));
+  const result = await account.requestCode(email);
   if (!result.ok) {
-    return json({ error: `Kod już wysłany. Następny możesz wysłać za ${result.retryAfter} s.`, retryAfter: result.retryAfter }, 429);
+    return json({ error: `Następny kod możesz zamówić za ${result.retryAfter} s.`, retryAfter: result.retryAfter }, 429);
   }
 
   try {
     await sendMail(env, loginCodeMail({ to: email, code: result.code, origin: new URL(request.url).origin }));
   } catch (error) {
     console.error("Nie udało się wysłać kodu", error);
-    if (!import.meta.env.DEV) return json({ error: "Nie udało się wysłać maila. Spróbuj za chwilę." }, 502);
+    if (!import.meta.env.DEV) {
+      // This exact request may have been superseded while delivery was pending.
+      // Delete its row, never the latest code, and do not throttle a failed delivery.
+      await account.cancelCodeRequest(result.requestId);
+      return json({ error: "Nie udało się wysłać maila. Spróbuj za chwilę." }, 502);
+    }
   }
   if (import.meta.env.DEV) {
     console.log(`[dev] Kod logowania dla ${email}: ${result.code}`);
